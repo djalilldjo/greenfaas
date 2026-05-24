@@ -1,0 +1,34 @@
+# ---- Large third-party datasets (fetch from original sources; see REAL_DATA_GUIDE.md) ----
+real_data/azure_2021/*.txt
+real_data/azure_2021/*.csv
+sample_data/azure_2019_high_fidelity/*.csv
+*.parquet
+
+# ---- LaTeX build artifacts ----
+latex/*.aux
+latex/*.log
+latex/*.out
+latex/*.blg
+latex/*.bbl
+latex/*.spl
+latex/*.toc
+latex/*.fls
+latex/*.fdb_latexmk
+latex/*.synctex.gz
+latex/sections/*.aux
+
+# ---- Python ----
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/

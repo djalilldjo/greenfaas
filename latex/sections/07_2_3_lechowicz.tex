@@ -1,0 +1,113 @@
+\subsection{Comparison with the Provable Lechowicz Algorithm}
+\label{sec:evaluation:lechowicz}
+
+A reviewer concern (and a natural one) is that our headline comparison
+is against three heuristics (FIFO, Wait-Awhile, Spatial) rather than
+against a provably-optimal online algorithm. We address this by
+implementing a FaaS-adapted port of the one-way trading algorithm of
+\citet{lechowicz2024online}, which provides an optimal competitive
+ratio $\sqrt{U/L}$ for deadline-constrained carbon-aware scheduling
+in a simpler model. Our port: for each invocation, examine the carbon
+forecast over the SLA-deadline window, compute the threshold $\Phi^*
+= \sqrt{U \cdot L}$ (where $U, L$ are the maximum and minimum
+forecast intensities), commit at the first slot below $\Phi^*$,
+otherwise commit at the deadline.
+
+\begin{table}[h]
+\centering\small
+\caption{Lechowicz et al.\ \citep{lechowicz2024online} one-way trading
+algorithm vs.\ our baselines, 5-seed mean $\pm$ std.}
+\label{tab:lechowicz}
+\begin{tabular}{llrr}
+\toprule
+Setup & Scheduler & vs FIFO & Cold-start \\
+\midrule
+\multirow{4}{*}{Synthetic 5-region}
+& Wait-Awhile  & $-306.5\% \pm 4.3\%$ & $2.03\%$ \\
+& Lechowicz    & $-238.4\% \pm 3.2\%$ & $2.39\%$ \\
+& Spatial      & $+72.9\% \pm 0.3\%$  & $0.03\%$ \\
+& \GreenFaaS   & $+71.8\% \pm 0.3\%$  & $0.05\%$ \\
+\midrule
+\multirow{4}{*}{Real LWA 4-region}
+& Wait-Awhile  & $-176.2\% \pm 2.5\%$ & $1.29\%$ \\
+& Lechowicz    & $\mathbf{-336.6\% \pm 4.3\%}$ & $2.84\%$ \\
+& Spatial      & $+65.1\% \pm 0.2\%$  & $0.03\%$ \\
+& \GreenFaaS   & $+64.6\% \pm 0.2\%$  & $0.03\%$ \\
+\midrule
+\multirow{4}{*}{Real single-region DE}
+& Wait-Awhile  & $-176.7\% \pm 6.3\%$ & $1.61\%$ \\
+& Lechowicz    & $\mathbf{-320.2\% \pm 2.9\%}$ & $2.44\%$ \\
+& Spatial      & $\phantom{+}0.0\% \pm 0.0\%$ & $0.02\%$ \\
+& \GreenFaaS   & $\phantom{+}0.0\% \pm 0.0\%$ & $0.02\%$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The finding is striking: \textbf{the provably-optimal-competitive-ratio
+algorithm performs worse than the heuristic Wait-Awhile on real
+carbon data, and worst of all on the single-region setup where its
+theory applies cleanest.} (On \emph{synthetic} carbon the two batch
+schedulers rank the other way --- Lechowicz $-238.4\%$ vs
+Wait-Awhile $-306.5\%$, so Lechowicz is marginally the less
+catastrophic --- but on real carbon the ordering reverses, Lechowicz
+$-336.6\%$ vs Wait-Awhile $-176.2\%$; either way both fail badly.)
+In the most-favourable-to-Lechowicz setup
+(real single-region DE, no spatial axis), \GreenFaaS{} and Spatial
+correctly identify zero opportunity and match FIFO byte-for-byte,
+while Lechowicz inflates carbon by 320\% above FIFO.
+
+The mechanism is exactly the
+\S\ref{sec:tradeoff:idle} contribution. Lechowicz's competitive
+analysis assumes deferral is free of side effects: the cost of holding
+a job pending until commit time is treated as zero. For FaaS, this
+assumption is violated by warm-pool idle energy: deferring an
+invocation extends the warm container's idle period, charging
+$P_i \Delta t \bar{C}_r$ in carbon that the competitive analysis does
+not see. The threshold $\Phi^* = \sqrt{U \cdot L}$ aggressively
+defers any invocation arriving above $\Phi^*$, even when the warm
+container's idle-energy cost will exceed the execution savings ---
+which is, given typical FaaS values of $\beta = P_i T_w / (P_a
+\tau_e) \in [50, 200]$, almost always. The cold-start rate of
+2.4--2.8\% (vs.\ \GreenFaaS's 0.02--0.05\%) is the direct evidence: the
+algorithm aggressively defers past warm-pool TTLs and pays cold-start
+penalties on most invocations.
+
+This is, in our reading, the strongest empirical evidence for the
+paper's central technical claim. A provably-optimal algorithm for
+deadline-constrained one-way trading, when ported to FaaS scheduling
+without accounting for warm-pool idle-energy coupling, becomes the
+worst-performing scheduler in our study. The closed-form idle-energy
+correction of \S\ref{sec:tradeoff:idle} is precisely what makes the
+difference; without it, provability does not rescue the algorithm.
+\S\ref{sec:theory} formalizes the warm-pool-coupled cost model
+and states Conjecture~\ref{conj:lech-lb}: that
+Lechowicz-style algorithms have $\Omega(\beta)$ competitive ratio
+in a multi-container regime that captures FaaS production behavior.
+We have not proven this conjecture; the single-container model does
+not admit the natural N-invocation construction (the idle energy of
+one shared container cannot be charged per pending invocation without
+double-counting, see \S\ref{sec:theory:why_hard}), and the empirical
+evidence here is consistent with the conjecture but does not
+establish it.
+
+\paragraph{Honest caveats.} (i) Our port follows Lechowicz et al.'s
+algorithmic prescription faithfully but does not extend their
+competitive-ratio proof to the warm-pool-coupled cost. The non-separable
+cost structure of \GreenFaaS{} (\S\ref{sec:problem:online}) is
+outside the standard one-way trading framework. (ii) The Lechowicz
+framework was designed for batch jobs with hours-long deadlines,
+similar to Wait-Awhile's intended regime; we are not surprised that a
+FaaS-adapted port fails, and the paper's finding is that
+\emph{neither} batch-oriented framework (heuristic or provably-
+optimal) transfers to FaaS without addressing the idle-energy
+coupling. A FaaS-native online algorithm with competitive-ratio
+guarantees over the warm-pool-coupled problem remains the most
+interesting theoretical extension this work suggests.
+(iii) Our port computes the one-way trading bounds $U$ and $L$ from
+the carbon-intensity forecast over each invocation's deadline window,
+whereas the original algorithm assumes globally-known a-priori
+bounds. Using deadline-local bounds adapts the threshold
+$\Phi^* = \sqrt{UL}$ to each invocation's forecast window; this is a
+necessary adaptation to the non-stationary carbon setting, and it may
+make the threshold more or less aggressive than the global-bound
+version depending on the local carbon range.

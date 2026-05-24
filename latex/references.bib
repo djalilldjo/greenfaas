@@ -1,0 +1,407 @@
+@inproceedings{wiesner2021lets,
+author = {Wiesner, Philipp and Behnke, Ilja and Scheinert, Dominik and Gontarska, Kordian and Thamsen, Lauritz},
+title = {Let's wait awhile: how temporal workload shifting can reduce carbon emissions in the cloud},
+year = {2021},
+isbn = {9781450385343},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3464298.3493399},
+doi = {10.1145/3464298.3493399},
+abstract = {Depending on energy sources and demand, the carbon intensity of the public power grid fluctuates over time. Exploiting this variability is an important factor in reducing the emissions caused by data centers. However, regional differences in the availability of low-carbon energy sources make it hard to provide general best practices for when to consume electricity. Moreover, existing research in this domain focuses mostly on carbon-aware workload migration across geo-distributed data centers, or addresses demand response purely from the perspective of power grid stability and costs.In this paper, we examine the potential impact of shifting computational workloads towards times where the energy supply is expected to be less carbon-intensive. To this end, we identify characteristics of delay-tolerant workloads and analyze the potential for temporal workload shifting in Germany, Great Britain, France, and California over the year 2020. Furthermore, we experimentally evaluate two workload shifting scenarios in a simulation to investigate the influence of time constraints, scheduling strategies, and the accuracy of carbon intensity forecasts. To accelerate research in the domain of carbon-aware computing and to support the evaluation of novel scheduling algorithms, our simulation framework and datasets are publicly available.},
+booktitle = {Proceedings of the 22nd International Middleware Conference},
+pages = {260–272},
+numpages = {13},
+keywords = {temporal workload shifting, resource management, green computing, data center, carbon-aware scheduling},
+location = {Qu\'{e}bec city, Canada},
+series = {Middleware '21}
+}
+
+@inproceedings {shahrad2020serverless,
+author = {Mohammad Shahrad and Rodrigo Fonseca and Inigo Goiri and Gohar Chaudhry and Paul Batum and Jason Cooke and Eduardo Laureano and Colby Tresness and Mark Russinovich and Ricardo Bianchini},
+title = {Serverless in the Wild: Characterizing and Optimizing the Serverless Workload at a Large Cloud Provider},
+booktitle = {2020 USENIX Annual Technical Conference (USENIX ATC 20)},
+year = {2020},
+isbn = {978-1-939133-14-4},
+pages = {205--218},
+url = {https://www.usenix.org/conference/atc20/presentation/shahrad},
+publisher = {USENIX Association},
+month = jul
+}
+
+
+
+@inproceedings{zhang2021faster,
+author = {Zhang, Yanqi and Goiri, \'{I}\~{n}igo and Chaudhry, Gohar Irfan and Fonseca, Rodrigo and Elnikety, Sameh and Delimitrou, Christina and Bianchini, Ricardo},
+title = {Faster and Cheaper Serverless Computing on Harvested Resources},
+year = {2021},
+isbn = {9781450387095},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3477132.3483580},
+doi = {10.1145/3477132.3483580},
+abstract = {Serverless computing is becoming increasingly popular due to its ease of programming, fast elasticity, and fine-grained billing. However, the serverless provider still needs to provision, manage, and pay the IaaS provider for the virtual machines (VMs) hosting its platform. This ties the cost of the serverless platform to the cost of the underlying VMs. One way to significantly reduce cost is to use spare resources, which cloud providers rent at a massive discount. Harvest VMs offer such cheap resources: they grow and shrink to harvest all the unallocated CPU cores in their host servers, but may be evicted to make room for more expensive VMs. Thus, using Harvest VMs to run the serverless platform comes with two main challenges that must be carefully managed: VM evictions and dynamically varying resources in each VM.In this work, we explore the challenges and benefits of hosting serverless (Function as a Service or simply FaaS) platforms on Harvest VMs. We characterize the serverless workloads and Harvest VMs of Microsoft Azure, and design a serverless load balancer that is aware of evictions and resource variations in Harvest VMs. We modify OpenWhisk, a widely-used open-source serverless platform, to monitor harvested resources and balance the load accordingly, and evaluate it experimentally. Our results show that adopting harvested resources improves efficiency and reduces cost. Under the same cost budget, running serverless platforms on harvested resources achieves 2.2x to 9.0x higher throughput compared to using dedicated resources. When using the same amount of resources, running serverless platforms on harvested resources achieves 48\% to 89\% cost savings with lower latency due to better load balancing.},
+booktitle = {Proceedings of the ACM SIGOPS 28th Symposium on Operating Systems Principles},
+pages = {724–739},
+numpages = {16},
+keywords = {harvested resources, Serverless computing},
+location = {Virtual Event, Germany},
+series = {SOSP '21}
+}
+
+@article{hanafy2023carbonscaler,
+author = {Hanafy, Walid A. and Liang, Qianlin and Bashir, Noman and Irwin, David and Shenoy, Prashant},
+title = {CarbonScaler: Leveraging Cloud Workload Elasticity for Optimizing Carbon-Efficiency},
+year = {2023},
+issue_date = {December 2023},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {7},
+number = {3},
+url = {https://doi.org/10.1145/3626788},
+doi = {10.1145/3626788},
+abstract = {Cloud platforms are increasing their emphasis on sustainability and reducing their operational carbon footprint. A common approach for reducing carbon emissions is to exploit the temporal flexibility inherent to many cloud workloads by executing them in periods with the greenest energy and suspending them at other times. Since such suspend-resume approaches can incur long delays in job completion times, we present a new approach that exploits the elasticity of batch workloads in the cloud to optimize their carbon emissions. Our approach is based on the notion of "carbon scaling," similar to cloud autoscaling, where a job dynamically varies its server allocation based on fluctuations in the carbon cost of the grid's energy. We develop a greedy algorithm for minimizing a job's carbon emissions via carbon scaling that is based on the well-known problem of marginal resource allocation. We implement a CarbonScaler prototype in Kubernetes using its autoscaling capabilities and an analytic tool to guide the carbon-efficient deployment of batch applications in the cloud. We then evaluate CarbonScaler using real-world machine learning training and MPI jobs on a commercial cloud platform and show that it can yield i) 51\% carbon savings over carbon-agnostic execution; ii) 37\% over a state-of-the-art suspend-resume policy; and iii) 8 over the best static scaling policy.},
+journal = {Proc. ACM Meas. Anal. Comput. Syst.},
+month = dec,
+articleno = {57},
+numpages = {28},
+keywords = {auto scaling, carbon efficiency, sustainable computing}
+}
+
+
+@inproceedings{souza2023ecovisor,
+author = {Souza, Abel and Bashir, Noman and Murillo, Jorge and Hanafy, Walid and Liang, Qianlin and Irwin, David and Shenoy, Prashant},
+title = {Ecovisor: A Virtual Energy System for Carbon-Efficient Applications},
+year = {2023},
+isbn = {9781450399166},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3575693.3575709},
+doi = {10.1145/3575693.3575709},
+abstract = {Cloud platforms' rapid growth is raising significant concerns about their carbon emissions. To reduce carbon emissions, future cloud platforms will need to increase their reliance on renewable energy sources, such as solar and wind, which have zero emissions but are highly unreliable. Unfortunately, today's energy systems effectively mask this unreliability in hardware, which prevents applications from optimizing their carbon-efficiency, or work done per kilogram of carbon emitted. To address the problem, we design an "ecovisor", which virtualizes the energy system and exposes software-defined control of it to applications. An ecovisor enables each application to handle clean energy's unreliability in software based on its own specific requirements. We implement a small-scale ecovisor prototype that virtualizes a physical energy system to enable software-based application-level i) visibility into variable grid carbon-intensity and local renewable generation and ii) control of server power usage and battery charging and discharging. We evaluate the ecovisor approach by showing how multiple applications can concurrently exercise their virtual energy system in different ways to better optimize carbon-efficiency based on their specific requirements compared to general system-wide policies.},
+booktitle = {Proceedings of the 28th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 2},
+pages = {252–265},
+numpages = {14},
+keywords = {Sustainable computing, cloud computing, operating systems},
+location = {Vancouver, BC, Canada},
+series = {ASPLOS 2023}
+}
+
+@ARTICLE{radovanovic2023google,
+  author={Radovanović, Ana and Koningstein, Ross and Schneider, Ian and Chen, Bokan and Duarte, Alexandre and Roy, Binz and Xiao, Diyue and Haridasan, Maya and Hung, Patrick and Care, Nick and Talukdar, Saurav and Mullen, Eric and Smith, Kendal and Cottman, MariEllen and Cirne, Walfredo},
+  journal={IEEE Transactions on Power Systems}, 
+  title={Carbon-Aware Computing for Datacenters}, 
+  year={2023},
+  volume={38},
+  number={2},
+  pages={1270-1280},
+  keywords={Internet;Carbon;Carbon dioxide;Real-time systems;Load modeling;Computational modeling;Pipelines;Carbon- and efficiency-aware compute manage- ment;datacenter computing;power management},
+  doi={10.1109/TPWRS.2022.3173250}}
+
+
+@inproceedings {agache2020firecracker,
+author = {Alexandru Agache and Marc Brooker and Alexandra Iordache and Anthony Liguori and Rolf Neugebauer and Phil Piwonka and Diana-Maria Popa},
+title = {Firecracker: Lightweight Virtualization for Serverless Applications },
+booktitle = {17th USENIX Symposium on Networked Systems Design and Implementation (NSDI 20)},
+year = {2020},
+isbn = {978-1-939133-13-7},
+address = {Santa Clara, CA},
+pages = {419--434},
+url = {https://www.usenix.org/conference/nsdi20/presentation/agache},
+publisher = {USENIX Association},
+month = feb
+}
+
+@inproceedings{du2020catalyzer,
+author = {Du, Dong and Yu, Tianyi and Xia, Yubin and Zang, Binyu and Yan, Guanglu and Qin, Chenggang and Wu, Qixuan and Chen, Haibo},
+title = {Catalyzer: Sub-millisecond Startup for Serverless Computing with Initialization-less Booting},
+year = {2020},
+isbn = {9781450371025},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3373376.3378512},
+doi = {10.1145/3373376.3378512},
+abstract = {Serverless computing promises cost-efficiency and elasticity for high-productive software development. To achieve this, the serverless sandbox system must address two challenges: strong isolation between function instances, and low startup latency to ensure user experience. While strong isolation can be provided by virtualization-based sandboxes, the initialization of sandbox and application causes non-negligible startup overhead. Conventional sandbox systems fall short in low-latency startup due to their application-agnostic nature: they can only reduce the latency of sandbox initialization through hypervisor and guest kernel customization, which is inadequate and does not mitigate the majority of startup overhead.This paper proposes Catalyzer, a serverless sandbox system design providing both strong isolation and extremely fast function startup. Instead of booting from scratch, Catalyzer restores a virtualization-based function instance from a well-formed checkpoint image and thereby skips the initialization on the critical path (init-less). Catalyzer boosts the restore performance by on-demand recovering both user-level memory state and system state. We also propose a new OS primitive, sfork (sandbox fork), to further reduce the startup latency by directly reusing the state of a running sandbox instance. Fundamentally, Catalyzer removes the initialization cost by reusing state, which enables general optimizations for diverse serverless functions. The evaluation shows that Catalyzer reduces startup latency by orders of magnitude, achieves < 1ms latency in the best case, and significantly reduces the end-to-end latency for real-world workloads. Catalyzer has been adopted by Ant Financial, and we also present lessons learned from industrial development.},
+booktitle = {Proceedings of the Twenty-Fifth International Conference on Architectural Support for Programming Languages and Operating Systems},
+pages = {467–481},
+numpages = {15},
+keywords = {checkpoint and restore, operating system, serverless computing, startup latency},
+location = {Lausanne, Switzerland},
+series = {ASPLOS '20}
+}
+
+@inproceedings{fuerst2021faascache,
+author = {Fuerst, Alexander and Sharma, Prateek},
+title = {FaasCache: keeping serverless computing alive with greedy-dual caching},
+year = {2021},
+isbn = {9781450383172},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3445814.3446757},
+doi = {10.1145/3445814.3446757},
+abstract = {Functions as a Service (also called serverless computing) promises to revolutionize how applications use cloud resources. However, functions suffer from cold-start problems due to the overhead of initializing their code and data dependencies before they can start executing. Keeping functions alive and warm after they have finished execution can alleviate the cold-start overhead. Keep-alive policies must keep functions alive based on their resource and usage characteristics, which is challenging due to the diversity in FaaS workloads. Our insight is that keep-alive is analogous to caching. Our caching-inspired Greedy-Dual keep-alive policy can be effective in reducing the cold-start overhead by more than 3\texttimes{} compared to current approaches. Caching concepts such as reuse distances and hit-ratio curves can also be used for auto-scaled server resource provisioning, which can reduce the resource requirement of FaaS providers by 30\% for real-world dynamic workloads. We implement caching-based keep-alive and resource provisioning policies in our FaasCache system, which is based on OpenWhisk. We hope that our caching analogy opens the door to more principled and optimized keep-alive and resource provisioning techniques for future FaaS workloads and platforms.},
+booktitle = {Proceedings of the 26th ACM International Conference on Architectural Support for Programming Languages and Operating Systems},
+pages = {386–400},
+numpages = {15},
+keywords = {Caching, Cloud Computing, Functions as a Service, Serverless Computing},
+location = {Virtual, USA},
+series = {ASPLOS '21}
+}
+
+@inproceedings{chadha2023greencourier,
+author = {Chadha, Mohak and Subramanian, Thandayuthapani and Arima, Eishi and Gerndt, Michael and Schulz, Martin and Abboud, Osama},
+title = {GreenCourier: Carbon-Aware Scheduling for Serverless Functions},
+year = {2023},
+isbn = {9798400704550},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3631295.3631396},
+doi = {10.1145/3631295.3631396},
+abstract = {This paper presents GreenCourier, a novel scheduling framework that enables the runtime scheduling of serverless functions across geographically distributed regions based on their carbon efficiencies. Our framework incorporates an intelligent scheduling strategy for Kubernetes and supports Knative as the serverless platform. To obtain real-time carbon information for different geographical regions, our framework supports multiple marginal carbon emissions sources such as WattTime and the Carbon-aware SDK. We comprehensively evaluate the performance of our framework using the Google Kubernetes Engine and production serverless function traces for scheduling functions across Spain, France, Belgium, and the Netherlands. Results from our experiments show that compared to other approaches, GreenCourier reduces carbon emissions per function invocation by an average of 13.25\%.},
+booktitle = {Proceedings of the 9th International Workshop on Serverless Computing},
+pages = {18–23},
+numpages = {6},
+keywords = {Carbon Efficiency, Function-as-a-Service, Serverless Computing, Sustainable Serverless Computing},
+location = {Bologna, Italy},
+series = {WoSC '23}
+}
+
+@INPROCEEDINGS{jiang2024ecolife,
+  author={Jiang, Yankai and Roy, Rohan Basu and Li, Baolin and Tiwari, Devesh},
+  booktitle={SC24: International Conference for High Performance Computing, Networking, Storage and Analysis}, 
+  title={EcoLife: Carbon-Aware Serverless Function Scheduling for Sustainable Computing}, 
+  year={2024},
+  volume={},
+  number={},
+  pages={1-15},
+  keywords={Processor scheduling;High performance computing;Hardware;Sustainable development;Particle swarm optimization;Carbon footprint;Serverless Computing;Sustainable Computing;Cloud Computing},
+  doi={10.1109/SC41406.2024.00018}}
+
+@inproceedings{souza2024casper,
+author = {Souza, Abel and Jasoria, Shruti and Chakrabarty, Basundhara and Bridgwater, Alexander and Lundberg, Axel and Skogh, Filip and Ali-Eldin, Ahmed and Irwin, David and Shenoy, Prashant},
+title = {CASPER: Carbon-Aware Scheduling and Provisioning for Distributed Web Services},
+year = {2024},
+isbn = {9798400716690},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3634769.3634812},
+doi = {10.1145/3634769.3634812},
+abstract = {There has been a significant societal push towards sustainable practices, including in computing. Modern interactive workloads such as geo-distributed web-services exhibit various spatiotemporal and performance flexibility, enabling the possibility to adapt the location, time, and intensity of processing to align with the availability of renewable and low-carbon energy. An example is a web application hosted across multiple cloud regions, each with varying carbon intensity based on their local electricity mix. Distributed load-balancing enables the exploitation of low-carbon energy through load migration across regions, reducing web applications carbon footprint. In this paper, we present CASPER, a carbon-aware scheduling and provisioning system that primarily minimizes the carbon footprint of distributed web services while also respecting their Service Level Objectives (SLO). We formulate CASPER as an multi-objective optimization problem that considers both the variable carbon intensity and latency constraints of the network. Our evaluation reveals the significant potential of CASPER in achieving substantial reductions in carbon emissions. Compared to baseline methods, CASPER demonstrates improvements of up to 70\% with no latency performance degradation.},
+booktitle = {Proceedings of the 14th International Green and Sustainable Computing Conference},
+pages = {67–73},
+numpages = {7},
+location = {Toronto, ON, Canada},
+series = {IGSC '23}
+}
+
+@article{lechowicz2024online,
+author = {Lechowicz, Adam and Christianson, Nicolas and Zuo, Jinhang and Bashir, Noman and Hajiesmaili, Mohammad and Wierman, Adam and Shenoy, Prashant},
+title = {The Online Pause and Resume Problem: Optimal Algorithms and An Application to Carbon-Aware Load Shifting},
+year = {2023},
+issue_date = {December 2023},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {7},
+number = {3},
+url = {https://doi.org/10.1145/3626776},
+doi = {10.1145/3626776},
+abstract = {We introduce and study the online pause and resume problem. In this problem, a player attempts to find the k lowest (alternatively, highest) prices in a sequence of fixed length T, which is revealed sequentially. At each time step, the player is presented with a price and decides whether to accept or reject it. The player incurs aswitching cost whenever their decision changes in consecutive time steps, i.e., whenever they pause or resume purchasing. This online problem is motivated by the goal of carbon-aware load shifting, where a workload may be paused during periods of high carbon intensity and resumed during periods of low carbon intensity and incurs a cost when saving or restoring its state. It has strong connections to existing problems studied in the literature on online optimization, though it introduces unique technical challenges that prevent the direct application of existing algorithms. Extending prior work on threshold-based algorithms, we introducedouble-threshold algorithms for both the minimization and maximization variants of this problem. We further show that the competitive ratios achieved by these algorithms are the best achievable by any deterministic online algorithm. Finally, we empirically validate our proposed algorithm through case studies on the application of carbon-aware load shifting using real carbon trace data and existing baseline algorithms.},
+journal = {Proc. ACM Meas. Anal. Comput. Syst.},
+month = dec,
+articleno = {45},
+numpages = {32},
+keywords = {carbon-aware load shifting, k-search, online algorithms, online pause and resume, switching costs}
+}
+
+@inproceedings{bostandoost2024lacs,
+author = {Bostandoost, Roozbeh and Lechowicz, Adam and Hanafy, Walid A. and Bashir, Noman and Shenoy, Prashant and Hajiesmaili, Mohammad},
+title = {LACS: Learning-Augmented Algorithms for Carbon-Aware Resource Scaling with Uncertain Demand},
+year = {2024},
+isbn = {9798400704802},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3632775.3661942},
+doi = {10.1145/3632775.3661942},
+abstract = {Motivated by an imperative to reduce the carbon emissions of cloud data centers, this paper studies the online carbon-aware resource scaling problem with unknown job lengths (OCSU) and applies it to carbon-aware resource scaling for executing computing workloads. The task is to dynamically scale resources (e.g., the number of servers) assigned to a job of unknown length such that it is completed before a deadline, with the objective of reducing the carbon emissions of executing the workload. The total carbon emissions of executing a job originate from the emissions of running the job and excess carbon emitted while switching between different scales (e.g., due to checkpoint and resume). Prior work on carbon-aware resource scaling has assumed accurate job length information, while other approaches have ignored switching losses and require carbon intensity forecasts. These assumptions prohibit the practical deployment of prior work for online carbon-aware execution of scalable computing workload. We propose LACS, a theoretically robust, learning-augmented algorithm that solves OCSU. To achieve improved practical average-case performance, LACS integrates machine-learned predictions of job length. To achieve solid theoretical performance, LACS extends the recent theoretical advances on online conversion with switching costs to handle a scenario where the job length is unknown. Our experimental evaluations demonstrate that, on average, the carbon footprint of LACS lies within 1.2\% of the online baseline that assumes perfect job length information and within 16\% of the offline baseline that, in addition to the job length, also requires accurate carbon intensity forecasts. Furthermore, LACS achieves a 32\% reduction in carbon footprint compared to the deadline-aware carbon-agnostic execution of the job.},
+booktitle = {Proceedings of the 15th ACM International Conference on Future and Sustainable Energy Systems},
+pages = {27–45},
+numpages = {19},
+keywords = {Sustainable computing, online algorithms, resource scaling},
+location = {Singapore, Singapore},
+series = {e-Energy '24}
+}
+
+@inproceedings{sukprasert2023quantifying,
+  title     = {On the Limitations of Carbon-Aware Temporal and Spatial Workload Shifting in the Cloud},
+  author    = {Sukprasert, Thanathorn and Souza, Abel and Bashir, Noman and Irwin, David and Shenoy, Prashant},
+  booktitle = {Proceedings of the 19th European Conference on Computer Systems (EuroSys)},
+  year      = {2024}
+}
+
+@article{attenni2025spatiotemporal,
+  title     = {Spatio-Temporal Shifting to Reduce Carbon, Water, and Land-Use Footprints of Cloud Workloads},
+  author    = {Attenni, Giulio and Moawad, Youssef and Bartolini, Novella and Thamsen, Lauritz},
+  journal   = {arXiv preprint arXiv:2512.08725},
+  year      = {2025}
+}
+
+@inproceedings{lin2023adapting,
+author = {Lin, Liuzixuan and Chien, Andrew A},
+title = {Adapting Datacenter Capacity for Greener Datacenters and Grid},
+year = {2023},
+isbn = {9798400700323},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3575813.3595197},
+doi = {10.1145/3575813.3595197},
+abstract = {Cloud providers are adapting datacenter (DC) capacity to reduce carbon emissions. With hyperscale datacenters exceeding 100 MW individually, and in some grids exceeding 15\% of power load, DC adaptation is large enough to harm power grid dynamics, increasing carbon emissions, power prices, or reduce grid reliability. To avoid harm, we explore coordination of DC capacity change varying scope in space and time. In space, coordination scope spans a single datacenter, a group of datacenters, and datacenters with the grid. In time, scope ranges from online to day-ahead. We also consider what DC and grid information is used (e.g. real-time and day-ahead average carbon, power price, and compute backlog). For example, in our proposed PlanShare scheme, each datacenter uses day-ahead information to create a capacity plan and shares it, allowing global grid optimization (over all loads, over entire day). We evaluate DC carbon emissions reduction. Results show that local coordination scope fails to reduce carbon emissions significantly (3.2\%–5.4\% reduction). Expanding coordination scope to a set of datacenters improves slightly (4.9\%–7.3\%). PlanShare, with grid-wide coordination and full-day capacity planning, performs the best. PlanShare reduces DC emissions by 11.6\%–12.6\%, 1.56x–1.26x better than the best local, online approach’s results. PlanShare also achieves lower cost. We expect these advantages to increase as renewable generation in power grids increases. Further, a known full-day DC capacity plan provides a stable target for DC resource management.},
+booktitle = {Proceedings of the 14th ACM International Conference on Future Energy Systems},
+pages = {200–213},
+numpages = {14},
+keywords = {Adaptive loads, Capacity adaptation, Carbon emissions, Data centers, Power management},
+location = {Orlando, FL, USA},
+series = {e-Energy '23}
+}
+
+@misc{hanafy2025carbonflex,
+      title={CarbonFlex: Enabling Carbon-aware Provisioning and Scheduling for Cloud Clusters}, 
+      author={Walid A. Hanafy and Li Wu and David Irwin and Prashant Shenoy},
+      year={2025},
+      eprint={2505.18357},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/2505.18357}, 
+}
+
+@misc{faassim,
+  title   = {faas-sim: A FaaS Simulator for Trace-Driven Workloads},
+  author  = {{Edgerun}},
+  howpublished = {\url{https://github.com/edgerun/faas-sim}},
+  year    = {2022},
+  note    = {Accessed 2026}
+}
+
+@misc{vessim,
+  title   = {vessim: A Co-Simulation Framework for Carbon-Aware Computing},
+  author  = {{dos-group}},
+  howpublished = {\url{https://github.com/dos-group/vessim}},
+  year    = {2023},
+  note    = {Accessed 2026}
+}
+
+@misc{lwa,
+  title   = {Let's Wait Awhile: Carbon-Intensity Dataset},
+  author  = {{dos-group}},
+  howpublished = {\url{https://github.com/dos-group/lets-wait-awhile}},
+  year    = {2021},
+  note    = {Accessed 2026}
+}
+
+@misc{electricitymaps,
+  title   = {ElectricityMaps},
+  author  = {{Electricity Maps}},
+  howpublished = {\url{https://www.electricitymaps.com}},
+  year    = {2024},
+  note    = {Accessed 2026}
+}
+
+@misc{azuretrace,
+  title   = {Azure Public Dataset},
+  author  = {Microsoft},
+  howpublished = {\url{https://github.com/Azure/AzurePublicDataset}},
+  year    = {2021},
+  note    = {Accessed 2026}
+}
+
+@INPROCEEDINGS{qi2024casa,
+  author={Qi, Sirui and Moore, Hayden and Hogade, Ninad and Milojicic, Dejan and Bash, Cullen and Pasricha, Sudeep},
+  booktitle={2024 IEEE 15th International Green and Sustainable Computing Conference (IGSC)}, 
+  title={CASA: A Framework for SLO- and Carbon-Aware Autoscaling and Scheduling in Serverless Cloud Computing}, 
+  year={2024},
+  volume={},
+  number={},
+  pages={1-6},
+  keywords={Cloud computing;Schedules;Costs;Processor scheduling;Serverless computing;Carbon dioxide;Containers;Carbon footprint;serverless computing;container autoscaling;container scheduling;carbon emissions;service level objectives},
+  doi={10.1109/IGSC64514.2024.00010}}
+
+@inproceedings{gsteiger2024caribou,
+author = {Gsteiger, Viktor Urban and Long, Pin Hong (Daniel) and Sun, Yiran (Jerry) and Javanrood, Parshan and Shahrad, Mohammad},
+title = {Caribou: Fine-Grained Geospatial Shifting of Serverless Applications for Sustainability},
+year = {2024},
+isbn = {9798400712517},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3694715.3695954},
+doi = {10.1145/3694715.3695954},
+abstract = {Sustainability in computing is critical as environmental concerns rise. The cloud industry's carbon footprint is significant and rapidly growing. We show that dynamic geospatial shifting of cloud workloads to regions with lower carbon emission energy sources, particularly for more portable cloud workloads such as serverless applications, has a high potential to lower operational carbon emissions. To make the case, we build a comprehensive framework called Caribou that offloads serverless workflows across geo-distributed regions. Caribou requires no change in the application logic, nor on the provider side. It dynamically determines the best deployment plans, automatically (re-) deploys functions to appropriate regions, and redirects traffic to new endpoints. In reducing operational carbon through fine-grained, function-level offloading, Caribou does not undermine standard metrics such as performance and cost. We show how this approach can reduce the carbon footprint by an average of 22.9\% to 66.6\% across the North American continent. We demonstrate how a detailed specification of location constraints (e.g., to ensure compliance of one stage) can allow emission reductions for workflows (e.g., by offloading other stages). By showcasing the feasibility of carbon-aware geospatial application deployment, Caribou aims to push the boundaries of system techniques available to curtail cloud carbon emissions and provide a framework for future research.},
+booktitle = {Proceedings of the ACM SIGOPS 30th Symposium on Operating Systems Principles},
+pages = {403–420},
+numpages = {18},
+keywords = {sustainability, geospatial shifting, carbon-aware scheduling, serverless computing, cloud computing},
+location = {Austin, TX, USA},
+series = {SOSP '24}
+}
+
+
+@INPROCEEDINGS{qi2024wastewater,
+  author={Qi, Sirui and Moore, Hayden and Hogade, Ninad and Milojicic, Dejan and Bash, Cullen and Pasricha, Sudeep},
+  booktitle={2024 IEEE 15th International Green and Sustainable Computing Conference (IGSC)}, 
+  title={A Framework for SLO, Carbon, and Wastewater-Aware Sustainable FaaS Cloud Platform Management}, 
+  year={2024},
+  volume={},
+  number={},
+  pages={35-36},
+  keywords={Costs;Processor scheduling;Green products;Serverless computing;Carbon dioxide;Containers;Wastewater;Sustainable development;serverless computing;container autoscaling and scheduling;service level objectives;carbon emissions;wastewater},
+  doi={10.1109/IGSC64514.2024.00015}}
+
+
+@INPROCEEDINGS{greenwhisk,
+  author={Serenari, Jayden and Sreekumar, Sreekanth and Zhao, Kaiwen and Sarkar, Saurabh and Lee, Stephen},
+  booktitle={2024 IEEE International Conference on Cloud Engineering (IC2E)}, 
+  title={GreenWhisk: Emission-Aware Computing for Serverless Platform}, 
+  year={2024},
+  volume={},
+  number={},
+  pages={44-54},
+  keywords={Renewable energy sources;Green products;Software algorithms;Serverless computing;Carbon dioxide;Load management;Software systems;Carbon;Carbon footprint;System analysis and design;serverless;cloud;emissions;green computing},
+  doi={10.1109/IC2E61754.2024.00012}}
+
+
+@inproceedings{sharma2024accountable,
+author = {Sharma, Prateek and Fuerst, Alexander},
+title = {Accountable Carbon Footprints and Energy Profiling For Serverless Functions},
+year = {2024},
+isbn = {9798400712869},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3698038.3698531},
+doi = {10.1145/3698038.3698531},
+abstract = {Cloud computing is a significant and growing cause of carbon emissions. Understanding the energy consumption and carbon footprints of cloud applications is a fundamental prerequisite to raising awareness, designing sustainability metrics, and creating targeted system optimizations. In this paper, we address the challenges of providing accurate and full-system (not just CPU) carbon footprints for serverless (FaaS) functions. To the best of our knowledge, this is the first work which develops an energy and carbon metrology framework for FaaS.Carbon footprints require a new approach to energy profiling. We use FaaS workload properties such as locality to develop a simple and practical online statistical disaggregation approach. Our fine-grained per-invocation carbon footprints also include shared hardware and software emissions, and use insights from Shapley values to fairly account for both operational and embodied emissions. Owing to the growing importance of carbon measurement, we develop a new rigorous marginal energy based validation methodology which results in accountable, complete, and fair footprints. Over a wide range of FaaS workloads and hardware platforms, our energy footprints have an accuracy of > 99\%.},
+booktitle = {Proceedings of the 2024 ACM Symposium on Cloud Computing},
+pages = {522–541},
+numpages = {20},
+keywords = {Carbon footprint, Cloud computing, Energy measurement, Functions as a Service, Sustainable computing},
+location = {Redmond, WA, USA},
+series = {SoCC '24}
+}
+
+@article{el-yaniv2001,
+  title={Optimal search and one-way trading online algorithms},
+  author={El-Yaniv, Ran and Fiat, Amos and Karp, Richard M and Turpin, Gordon},
+  journal={Algorithmica},
+  volume={30},
+  number={1},
+  pages={101--139},
+  year={2001},
+  publisher={Springer}
+}
+
+@INPROCEEDINGS{kepler,
+  author={Amaral, Marcelo and Chen, Huamin and Chiba, Tatsuhiro and Nakazawa, Rina and Choochotkaew, Sunyanan and Lee, Eun Kyung and Eilam, Tamar},
+  booktitle={2023 IEEE 16th International Conference on Cloud Computing (CLOUD)}, 
+  title={Kepler: A Framework to Calculate the Energy Consumption of Containerized Applications}, 
+  year={2023},
+  volume={},
+  number={},
+  pages={69-71},
+  keywords={Measurement;Training;Cloud computing;Power demand;Power measurement;Protocols;Computational modeling;Sustainability;energy accounting;container power modeling;kubernetes;eBPF;RAPL},
+  doi={10.1109/CLOUD60044.2023.00017}}

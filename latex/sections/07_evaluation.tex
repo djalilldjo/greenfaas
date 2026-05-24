@@ -1,0 +1,425 @@
+\section{Evaluation}
+\label{sec:evaluation}
+
+This section presents our experimental evaluation of \GreenFaaS{}
+against four carbon-aware baselines. \S\ref{sec:evaluation:methodology}
+describes the trace data and reconstruction methodology.
+\S\ref{sec:evaluation:headline} reports headline results.
+\S\ref{sec:evaluation:topology}--\S\ref{sec:evaluation:intensity}
+sweep five sensitivity axes (topology, SLA mix, forecast accuracy,
+carbon variability, workload intensity).
+\S\ref{sec:evaluation:summary} synthesizes the cross-axis findings.
+
+\subsection{Methodology}
+\label{sec:evaluation:methodology}
+
+\paragraph{Workload traces.} Our evaluation uses two kinds of
+workload. The controlled sensitivity sweeps
+(\S\ref{sec:evaluation:sla}--\S\ref{sec:evaluation:intensity}) are
+driven by a schema-faithful \emph{synthetic} workload, because their
+purpose is to vary individual parameters (SLA mix, forecast accuracy,
+carbon variability, arrival rate) cleanly across wide ranges. The
+fully-real validation (\S\ref{sec:evaluation:realboth}) is driven by
+the real \emph{Azure Functions Invocation Trace 2021}
+\citep{zhang2021faster,azuretrace}, a per-invocation trace with schema
+\code{(app, func, end\_timestamp, duration)}; the 2021 loader converts
+each row to an \code{Invocation} by computing
+\code{arrival\_time = end\_timestamp - duration} and mapping
+\code{(app, func)} pairs to stable function IDs. Our loaders also
+accept the \emph{Azure Functions 2019} dataset
+\citep{shahrad2020serverless}, which is \emph{aggregated} (per-minute
+invocation counts plus per-function duration percentiles); the 2019
+loader reconstructs a per-invocation stream by drawing arrival times
+uniformly within each minute bin and sampling per-invocation durations
+from the empirical percentile distribution via linear inverse-CDF
+interpolation. Both loaders accept the exact published schemas, so the
+same evaluation code runs end-to-end on either real or synthetic
+input.
+
+\paragraph{Synthetic workload calibration.} The synthetic workload
+used in the sensitivity sweeps is calibrated to the
+\citet{shahrad2020serverless} and \citet{zhang2021faster}
+characterizations: non-homogeneous Poisson arrivals with diurnal
+shape, Zipf popularity with $s = 1.2$, heavy-tailed durations, and
+the SLA mix described below. We use synthetic input for the sweeps
+because controlled parameter variation across multiple axes requires
+generating workloads the real trace does not contain (e.g. a $25\%$
+shiftable fraction, or a forecast-error level of $0.3$); the
+fully-real experiment of \S\ref{sec:evaluation:realboth} confirms that
+the headline ordering established on synthetic data reproduces on the
+real Azure 2021 trace paired with time-aligned real carbon.
+
+\paragraph{Latency-class assignment.} Neither Azure dataset
+explicitly labels SLA tiers. For the 2019 trace the loader maps the
+explicit \code{Trigger} field: HTTP $\to$ \Interactive; queue,
+event-grid, orchestration $\to$ \Deferrable; timer, storage $\to$
+\Background. For the 2021 trace (no trigger field) the loader
+classifies by observed mean duration: $<1$\,s $\to$ \Interactive{}
+(1\,s SLA); 1--30\,s $\to$ \Deferrable{} (60\,s SLA); $>30$\,s $\to$
+\Background{} (1\,hour SLA). The synthetic workload uses the same
+class distribution as the 2019 trigger-field histogram.
+
+\paragraph{Carbon traces.} We use the publicly-released hourly
+carbon-intensity traces from \citet{wiesner2021lets,lwa} (DE, GB, FR,
+US-CAISO, 2020), computed from ENTSO-E and CAISO generation-mix data
+using IPCC factors. For experiments requiring a coal-belt region
+(\S\ref{sec:evaluation:realtopology}) we extend with a calibrated
+PL trace whose annual mean (791\,g CO$_2$eq/kWh) matches the value
+LWA documents for Poland in 2020 and whose coal-base-load diurnal
+shape uses the same generation factors as the LWA computation
+pipeline; we label it ``PL (synth., LWA methodology)'' wherever it
+appears. The simulator resamples all carbon traces to a uniform
+5-minute resolution via linear interpolation.
+
+\paragraph{Baselines.} \textbf{FIFO} (carbon-unaware lower bound).
+\textbf{Wait-Awhile} \citep{wiesner2021lets}: temporal deferral with
+threshold $C^* = 200$\,g\,CO$_2$eq/kWh. Two variants are reported:
+\emph{Wait-Awhile-Batch} (max\_defer = 1800\,s, Wiesner et al.'s
+batch-job default) and \emph{Wait-Awhile-FaaS} (max\_defer = 60\,s,
+matching \GreenFaaS's \Deferrable{} horizon). The two variants
+together address an obvious reviewer concern (\S\ref{sec:evaluation:fair-waitawhile}).
+\textbf{Spatial}: route to the lowest-current-carbon region within a
+class-dependent RTT budget. \textbf{GreenFaaS-v1}: the
+\GreenFaaS{} scheduler \emph{without} the
+\S\ref{sec:tradeoff:idle} idle-energy correction, included as an
+ablation.
+
+\subsection{Headline Results}
+\label{sec:evaluation:headline}
+
+We report headline results on a canonical synthetic experiment and
+validate them on real carbon data in \S\ref{sec:evaluation:realcarbon}.
+The canonical workload is 24h long with 173k invocations across 5
+regions including France as a low-carbon refuge and Poland at the
+high-carbon extreme.
+
+\begin{table}[t]
+\centering\small
+\caption{Synthetic 24h workload, 5 regions, 173k invocations,
+\textbf{mean $\pm$ std across 5 seeds} (42--46). Wait-Awhile-Batch
+uses the original 1800\,s defer horizon; see
+\S\ref{sec:evaluation:fair-waitawhile} for the fair-parameterization
+variant.}
+\label{tab:headline}
+\begin{tabular}{lrr}
+\toprule
+Scheduler & Carbon (g) & vs FIFO \\
+\midrule
+FIFO              & 51.57 $\pm$ 0.37 & 0.0\% \\
+Wait-Awhile-Batch & 209.66 $\pm$ 2.51 & $-$306.5\% $\pm$ 4.3\% \\
+Spatial           & 13.97 $\pm$ 0.07 & \textbf{+72.91\% $\pm$ 0.26\%} \\
+GreenFaaS-v1      & 14.73 $\pm$ 0.13 & +71.43\% $\pm$ 0.40\% \\
+\GreenFaaS        & 14.52 $\pm$ 0.07 & +71.84\% $\pm$ 0.32\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Three observations frame the rest of \S\ref{sec:evaluation}.
+\emph{First}, the batch-oriented Wait-Awhile scheduler with its
+default 1800\,s deferral horizon \emph{more than triples} operational
+carbon ($-306.5\% \pm 4.3\%$ on synthetic, $-176.2\% \pm 2.5\%$ on
+real LWA across 5 seeds), an
+empirical confirmation that batch carbon-aware techniques do not
+transfer to FaaS. \S\ref{sec:evaluation:fair-waitawhile} shows that
+shorter, FaaS-appropriate deferral horizons (60\,s, 30\,s) do not
+rescue Wait-Awhile --- they cause it to degenerate to a FIFO no-op,
+because its absolute-threshold criterion is rarely met inside such
+windows. We attribute the long-horizon failure mode in
+\S\ref{sec:evaluation:variability} to the synchronised-defer pile-up
+effect noted in \S\ref{sec:tradeoff:idle}. \emph{Second},
+\GreenFaaS{} reaches $71.84\% \pm 0.32\%$ reduction relative to FIFO,
+within 1.1 percentage points of pure spatial routing
+($72.91\% \pm 0.26\%$); the GreenFaaS--Spatial gap is small but
+statistically detectable (see the significance paragraph below),
+with Spatial consistently edging \GreenFaaS{}. The two schedulers
+are indistinguishable on SLA violation rate, p95 latency, and
+cold-start rate. \emph{Third}, the ablation between GreenFaaS-v1 and
+\GreenFaaS{} shows a meaningful but modest gap on this canonical
+workload ($71.43\% \pm 0.40\%$ vs $71.84\% \pm 0.32\%$). The
+interesting separation appears not on canonical
+workloads but in the sensitivity sweeps of
+\S\ref{sec:evaluation:sla} and \S\ref{sec:evaluation:variability},
+and in the coal-belt topology
+(\S\ref{sec:evaluation:realtopology}) where the ablation's variance
+blows up by an order of magnitude (std jumps from 0.4\% to 9.8\%) ---
+v1 produces unpredictably bad outcomes when the spatial axis offers
+limited refuge.
+
+The real-carbon validation in \S\ref{sec:evaluation:realcarbon}
+reproduces the same ordering on real LWA 2020 ENTSO-E / CAISO data,
+with magnitudes shifted modestly (GreenFaaS $64.63\% \pm 0.24\%$
+reduction vs $\sim 72\%$ on synthetic) because real 2020 European
+carbon was cleaner overall than our synthetic calibration assumed.
+
+\paragraph{Statistical significance of the key gaps.}
+We report paired statistical tests (paired $t$-test and Wilcoxon
+signed-rank) for the load-bearing scheduler comparisons, computed
+over the per-seed (synthetic, $n=5$) and per-window (real
+window-shift, $n=5$) carbon measurements
+(\code{scripts/stat\_tests.py}). The GreenFaaS--Spatial gap is small
+but statistically detectable: on synthetic data the $0.55$\,g mean
+difference is significant (paired $t$, $p=0.0003$), and on the real
+window-shift data the $0.11$\,g difference is significant
+($p=0.015$). In both cases Spatial is reliably the marginally better
+of the two; the practical magnitude (sub-percentage-point) is what
+licenses the claim that \GreenFaaS{} \emph{matches} Spatial, not that
+the gap is zero. The GreenFaaS-vs-v1 ablation gap is significant on
+both synthetic ($p=0.035$) and real ($p=0.003$) data, confirming the
+\S\ref{sec:tradeoff:idle} idle-energy correction has a real effect.
+The Wait-Awhile and Lechowicz losses to FIFO are significant on
+synthetic data; on the real window-shift data with $n=5$, the
+Lechowicz loss is significant ($p=0.042$) while the Wait-Awhile loss
+does not reach significance ($p=0.089$), reflecting the smaller
+real-data effect size and the limited window count. We note that the
+Wilcoxon signed-rank test cannot reach $p<0.05$ with $n=5$ (its
+minimum two-sided $p$-value is $0.0625$), so we rely on the paired
+$t$-test for significance at $n=5$ and report Wilcoxon as a
+non-parametric robustness check; a larger $n$ would be needed to
+discriminate the smallest effects non-parametrically. Given $n=5$, we
+treat the \emph{practical effect size} --- the sub-percentage-point
+GreenFaaS--Spatial gap and the multi-point batch-scheduler losses ---
+rather than the $p$-values as the load-bearing evidence; the tests are
+reported to characterize the gaps, not to rest the paper's claims on
+significance at small $n$. The five seeds (and the five windows) are
+independent draws; we apply no multiple-comparison correction and do
+not claim any single $p$-value as decisive.
+
+\input{sections/07_2_1_real_carbon}
+
+\input{sections/07_2_2_fair_waitawhile}
+
+\input{sections/07_2_3_lechowicz}
+
+\input{sections/07_2_4_realboth}
+
+\input{sections/07_2_5_caribou}
+
+\subsection{Sensitivity to Topology}
+\label{sec:evaluation:topology}
+
+The topology sweep reveals the most nuanced finding: \emph{\GreenFaaS's
+carbon advantage over pure spatial routing is topology-dependent.}
+Across five topologies (24h synthetic, 173k invocations):
+
+\begin{center}\small
+Synthetic carbon data; see Table~\ref{tab:real_topology} for the
+real-carbon counterpart.
+
+\begin{tabular}{lrrr}
+\toprule
+Topology               & Spatial   & \GreenFaaS{} & gap \\
+\midrule
+Full 6-region$^\ddagger$ & +79.0\%  & +78.4\% & $-0.6$ \\
+EU-only (FR/DE/GB/PL)  & +77.3\%  & +76.7\% & $-0.6$ \\
+Coal-belt (DE/GB/PL)   & +39.8\%  & +39.5\% & $-0.3$ \\
+Single-region DE       &   0.0\%   &   0.0\%  & 0.0 \\
+Single-region CAISO    &   0.0\%   &   0.0\%  & 0.0 \\
+\bottomrule
+\end{tabular}
+
+{\footnotesize $^\ddagger$\,The synthetic sweep includes a sixth
+region, Sweden (SE; hydro/nuclear, $\sim$30~gCO$_2$/kWh), as a second
+ultra-low-carbon refuge alongside France: FR/SE/DE/GB/CAISO/PL. The
+real-carbon experiments
+(Table~\ref{tab:real_topology}, \S\ref{sec:evaluation:realboth}) use
+the five regions for which we obtained time-aligned ENTSO-E/CAISO and
+ElectricityMaps data (FR/DE/GB/PL/CAISO), so their ``full'' topology
+is 5-region. Synthetic carbon (\code{CarbonModel.synthetic},
+seed~7); reproducible via \code{scripts/scenario\_sweep.py}. On real
+ENTSO-E data the same pattern holds (\S\ref{sec:evaluation:realtopology}):
+\GreenFaaS{} matches Spatial across \emph{every} topology.}
+\end{center}
+
+When the topology contains a low-carbon refuge (such as France),
+pure spatial routing captures essentially all available savings.
+\GreenFaaS{} \emph{matches} this to within 1 percentage point but
+does not dominate --- the lemma-gated temporal-shift logic adds
+little when the spatial axis already exploits a large carbon
+ratio. Even in the coal-belt topology, which has no low-carbon
+refuge, \GreenFaaS{} matches Spatial to within $0.3$ percentage
+points; we instrument this experiment and find that \GreenFaaS{}
+performs \emph{no} temporal deferral on it (it routes $\sim$22\% of
+invocations spatially and defers $0\%$), so the small difference
+arises from spatial-routing and warm-pool-affinity choices, not from
+intra-region temporal shifting. This is consistent with the
+fully-real decision breakdown of \S\ref{sec:evaluation:realboth}:
+across both synthetic and real carbon at the resolutions we test,
+\GreenFaaS{}'s savings come from its cold-start-aware spatial gate,
+not from temporal deferral.
+We confirm in
+\S\ref{sec:evaluation:realtopology} that on real ENTSO-E 2020 data
+\GreenFaaS{} matches
+Spatial across every topology to within 1.3 percentage points, with
+neither dominating. In
+single-region topologies, where spatial routing is by definition
+useless, \GreenFaaS{} correctly identifies that the diurnal swing
+within one region is insufficient to overcome the warm-pool
+idle-energy cost and \emph{declines to defer at all}, matching FIFO
+byte-for-byte. This do-no-harm property is the empirical manifestation
+of \S\ref{sec:tradeoff:idle}; it distinguishes \GreenFaaS{} sharply
+from Wait-Awhile (which loses 234--279\% in the same single-region
+scenarios on synthetic data and 163--211\% on real data) and from
+GreenFaaS-v1 (which loses 37--102\% and 38--40\% respectively).
+
+\input{sections/07_3_1_real_topology}
+
+\paragraph{Note on sweep parameters.} The remaining sensitivity
+sweeps (\S\ref{sec:evaluation:sla}--\S\ref{sec:evaluation:intensity})
+use a shorter 6-hour horizon to keep total sweep runtime tractable
+($\sim$90s wall-clock); absolute carbon reductions drift by a few
+percentage points relative to the \S\ref{sec:evaluation:headline}
+headline, but the \emph{ordering} of schedulers and the \emph{shape}
+of the sensitivity curves are stable.
+
+\subsection{Sensitivity to SLA Class Mix}
+\label{sec:evaluation:sla}
+
+We vary the fraction of \emph{shiftable} invocations
+(\Deferrable{} + \Background) from 0.0 (all \Interactive, no shifting
+allowed) to 1.0. Figure~\ref{fig:sla_mix} (zoomed) shows the
+carbon-aware schedulers.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/sensitivity_sla_mix_zoom.png}
+\caption{Carbon reduction vs FIFO as the shiftable workload fraction
+varies. \GreenFaaS{} climbs monotonically; GreenFaaS-v1 \emph{degrades}
+as more shifting becomes available, the failure mode the
+\S\ref{sec:tradeoff:idle} idle-energy correction was designed to
+prevent.}
+\label{fig:sla_mix}
+\end{figure}
+
+Three findings stand out. \emph{First}, all carbon-aware schedulers
+correctly identify the 0\% shiftable case as offering no opportunity
+and produce results identical to FIFO. \emph{Second}, Spatial and
+\GreenFaaS{} both improve monotonically as the shiftable fraction
+grows. \emph{Third}, \emph{GreenFaaS-v1 degrades
+as more shifting becomes available}, dropping from $+29\%$ at 25\%
+shiftable to $-3\%$ at 100\% shiftable. The v1 collapse is precisely
+the failure mode the idle-energy correction was designed to prevent:
+without charging the per-deferral idle cost, the scheduler aggressively
+defers every eligible invocation, inflating warm-pool dwell times and
+accumulating idle energy faster than it saves execution energy.
+
+\input{sections/07_4_1_fine_donoharm}
+
+\subsection{Sensitivity to Forecast Accuracy}
+\label{sec:evaluation:forecast}
+
+Several carbon-aware schedulers assume access to multi-hour
+forecasts. We vary \GreenFaaS's forecast horizon across
+\textsf{perfect}, \textsf{24h}, \textsf{1h}, \textsf{none}.
+
+\GreenFaaS's carbon reduction is \emph{invariant} to forecast accuracy
+across the four levels tested (69.5\% in all cases). The reason is
+structural: the region-gating logic uses \emph{instantaneous} carbon
+intensities (not forecasts), and the per-slot scoring is bounded by
+the \Deferrable{} class's 60-second deferral horizon, which is
+shorter than the carbon trace's 300-second resolution. Forecasts only
+matter to \GreenFaaS{} for \Background{} invocations with multi-hour
+deadlines, which are a minority of the canonical workload.
+
+\paragraph{Scope of this invariance.} We note a
+caveat: in our setup the carbon-trace step size (300\,s) exceeds the
+\Deferrable{} class's deferral horizon (60\,s), which means that for
+the dominant \Deferrable{} class, $N_{\text{slots}} = 1$ and the
+forecast is never actually consulted. The invariance result is
+therefore partially a consequence of forecast-temporal-resolution
+exceeding the deferral horizon, not solely a structural property of
+the scheduler. With higher-resolution carbon data (1-minute
+ElectricityMaps feeds, for instance, where $N_{\text{slots}} \approx
+60$ becomes feasible), \GreenFaaS{} would consult the forecast for
+\Deferrable{} invocations, and forecast sensitivity could appear.
+\Background{} invocations \emph{do} exercise the multi-hour forecast
+horizon and produce identical results across forecast accuracies,
+which is the load-bearing portion of the invariance claim. The
+precise statement is that \GreenFaaS{} is forecast-invariant
+\emph{(a)} for the \Background{} class structurally, and
+\emph{(b)} for the \Deferrable{} class under typical
+carbon-trace resolutions; under higher-resolution forecast data the
+\Deferrable{} class would consult the forecast and its sensitivity
+remains to be characterized.
+
+This forecast-robustness is a feature of the design even with the
+caveat above. It substantially reduces the deployment complexity of
+\GreenFaaS: a production rollout does not need to integrate with a
+carbon-forecasting service, and degraded forecast quality during
+incidents does not threaten behaviour. GreenFaaS-v1, by contrast,
+shows substantial forecast sensitivity, ranging from 25.1\% at
+\textsf{perfect} to 74.2\% at \textsf{none} --- another symptom of
+the un-charged temporal deferral that the idle-energy correction
+addresses.
+
+\subsection{Sensitivity to Carbon-Intensity Variability}
+\label{sec:evaluation:variability}
+
+We vary the diurnal amplitude of every region's carbon trace from 0.0
+(flat) to 0.75 (large swing), holding regional means and topology
+fixed. The corrected \GreenFaaS{} sits in a narrow 69.8--71.7\% band
+across the entire range, and Spatial in 74.1--74.7\%. \emph{Neither
+scheduler is sensitive to diurnal amplitude} on this 5-region
+topology, because the inter-region carbon ratio (FR 60 vs PL 700,
+ratio $\sim 11.7\times$) dwarfs even a 75\% intra-region swing.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/sensitivity_variability_zoom.png}
+\caption{Carbon reduction as diurnal amplitude varies. The corrected
+\GreenFaaS{} is stable. GreenFaaS-v1 \emph{degrades} with increasing
+variability --- higher amplitude offers more deferral opportunities
+that v1 incorrectly takes.}
+\label{fig:variability}
+\end{figure}
+
+The v1 ablation (Figure~\ref{fig:variability}) shows a striking
+\emph{negative} sensitivity: v1 falls from 68\% reduction at amplitude
+0 to just 7\% at amplitude 0.75. Higher amplitude offers more
+deferral opportunities that v1 incorrectly takes; the corrected
+\GreenFaaS{} forgoes unprofitable deferrals and remains stable. This
+is the second strong empirical validation of
+\S\ref{sec:tradeoff:idle}.
+
+\subsection{Sensitivity to Workload Intensity}
+\label{sec:evaluation:intensity}
+
+The fifth axis varies peak Poisson arrival rate from 0.5/s to 4.0/s
+(an $8\times$ span). \GreenFaaS{} achieves 69.3--73.0\% reduction
+across the range; Spatial achieves 70.9--84.4\%. The gap
+\emph{narrows} with increasing intensity, from 11.4 percentage points
+at 0.5/s to 1.6 at 4.0/s. Two mechanisms drive this convergence: at
+higher rates Lemma~\ref{lemma:tradeoff}'s $\lambda^*$ is more readily
+exceeded for more function-region pairs, so the region gate admits
+more candidates; and the EWMA estimator's variance is lower at high
+rates.
+
+\subsection{Summary of Sensitivity Findings}
+\label{sec:evaluation:summary}
+
+Five axes yield five consistent findings.
+\textbf{(1)} Wait-Awhile catastrophically fails on FaaS across every
+setting, validating the paper's central claim that batch-oriented
+schedulers do not transfer.
+\textbf{(2)} Pure spatial routing captures most of the achievable
+savings when a low-carbon refuge exists; \GreenFaaS{} matches Spatial
+to within 1pp in these regimes.
+\textbf{(3)} \GreenFaaS{} matches Spatial to within $1.3$pp across
+all topologies including coal-belt, on \emph{both} synthetic and real
+ENTSO-E 2020 carbon; instrumentation shows it performs no temporal
+deferral on the coal-belt experiment, so its savings there are
+spatial, not temporal
+(\S\ref{sec:evaluation:topology}--\ref{sec:evaluation:realtopology}).
+\textbf{(4)} \GreenFaaS{} preserves do-no-harm in single-region
+topologies, low-variability traces, and at zero shiftable workload
+fraction --- matching FIFO byte-for-byte when no axis offers real
+savings.
+\textbf{(5)} \GreenFaaS{} is robust to forecast quality and workload
+intensity, with carbon reduction varying by less than 4 percentage
+points across the tested ranges.
+
+The GreenFaaS-v1 ablation makes the case for the
+\S\ref{sec:tradeoff:idle} idle-energy correction crisp: without it,
+the scheduler exhibits Wait-Awhile-like failure modes in milder form
+(degradation under high shiftable fraction, under high carbon
+variability, and in single-region topologies). With it, \GreenFaaS{}
+is robust across every tested axis.

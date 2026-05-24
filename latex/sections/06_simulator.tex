@@ -1,0 +1,98 @@
+\section{Simulator Implementation}
+\label{sec:simulator}
+
+We implemented \GreenFaaS-sim, a single-process discrete-event
+simulator in Python, alongside the scheduler. The design follows the
+abstractions of \code{faas-sim} (function-level FaaS simulation) and
+\code{vessim} (carbon co-simulation) \citep{faassim,vessim}, but is a
+clean-room implementation rather than a fork --- written from scratch
+to give us tight control over event ordering, warm-pool accounting,
+and the extension points for trace loaders. The full implementation,
+including all baseline schedulers, is approximately 1{,}700 lines of
+substantive Python with no required dependencies beyond the standard
+library.
+
+\subsection{Event Model}
+
+The simulator maintains a min-heap of timestamped events of four
+kinds. \textsc{Arrival}: a new invocation enters the system; the
+scheduler is consulted exactly once and the decision committed for
+the lifetime of the invocation. \textsc{Start}: the chosen start time
+of a previously-scheduled invocation; execution begins, energy and
+carbon are charged. \textsc{Completion}: an invocation finishes; the
+container becomes warm-and-idle for up to $T_w$ seconds.
+\textsc{WarmExpire}: a warm container reaches its TTL without being
+reused and is evicted; accumulated idle energy is finalised.
+
+The decoupling of \textsc{Arrival} from \textsc{Start} is what makes
+temporal deferral possible without special-casing in the event loop:
+the scheduler returns a \code{start\_time} that may be in the
+future, and the simulator simply enqueues the \textsc{Start} event at
+that time. Reusing a warm container is signalled by the scheduler's
+\code{use\_warm} flag and realised at the \textsc{Start} event by
+decrementing the warm-pool count.
+
+\subsection{Warm-Pool Accounting}
+
+For each $(r, f)$ pair, the simulator tracks $W_{r,f}(t)$ and a queue
+of pending \textsc{WarmExpire} events. A container becomes warm at
+\textsc{Completion} with scheduled expiry $T_w$ seconds later. If
+reused before expiry, the warm count is decremented and the
+corresponding \textsc{WarmExpire} is matched at the \textsc{Start}
+event; the container's lifetime
+$(t_{\mathrm{end}} - t_{\mathrm{start}})$ is logged. If expiry fires
+first, the \textsc{WarmExpire} event performs eviction and logs the
+full $T_w$ lifetime.
+
+At simulation end, total warm-container lifetime per $(r, f)$ pair
+is multiplied by $P_i(f)$, $\mathrm{PUE}_r$, and the region's
+\emph{mean} carbon intensity $\bar{C}_r$. As discussed in
+\S\ref{sec:problem:cost}, this mean-intensity term is an
+approximation of the exact interval integral
+$\int W_{r,f}(t) C_r(t)\,dt$; it is exact when idle time is
+distributed uniformly over the horizon and conservative otherwise.
+The simulator therefore reports results under the mean-intensity
+approximation justified in \S\ref{sec:problem:cost}, matching the
+convention used in \GreenFaaS's per-slot scoring
+(Algorithm~\ref{alg:scoreslots}, line 13).
+
+\subsection{Extension Points}
+
+Three abstractions cleanly separate the algorithm from the data
+sources. \textbf{\code{CarbonModel}} provides
+\code{intensity(region, t)} and \code{forecast(region, t, horizon, accuracy)};
+the default implementation reads from per-region \code{CarbonTrace}
+objects with arbitrary step sizes, and real LWA / ENTSO-E format CSVs
+\citep{lwa} are loaded via \code{load\_carbon\_csv} into the same type.
+The scheduler does not know whether the carbon data is synthetic or real.
+\textbf{Workload generators} produce \code{List[Invocation]}; the
+default emits a non-homogeneous Poisson stream with Zipf
+popularity, and the real-trace loaders emit the same type from
+published Azure schemas. \textbf{Schedulers} implement a single
+method \code{schedule(invocation, state, carbon) -> ScheduleDecision};
+all five schedulers in our evaluation conform to this interface and
+are swappable.
+
+\subsection{Validation}
+
+The simulator's correctness rests on three checks. \emph{(1)
+Conservation:} total reported execution energy equals
+$\sum_i P_a(f(i)) \tau(i)$ within floating-point precision; total
+warm-idle energy equals $\sum_{(r,f)} P_i(f) \cdot
+\mathrm{lifetime}_{r,f}$. Verified by direct comparison with
+hand-computed values on small synthetic workloads. \emph{(2) Schedule
+determinism:} re-running a fixed scheduler on a fixed invocation
+stream produces identical decisions; verified for all five
+schedulers. \emph{(3) Lemma-implementation agreement:} the
+closed-form Lemma~\ref{lemma:tradeoff} and the per-invocation carbon
+computed by direct simulation agree at 56 grid points spanning
+$r \in [1.1, 11.7]$ and $\lambda \in [10^{-4}, 1]$/s, with
+\emph{zero} mismatches: the brute-force simulator confirms the
+lemma's predicted regime boundary (warm-in-low-carbon versus
+cold-in-high-carbon) at every grid point, and confirms the predicted
+break-even rate $\lambda^*$ within the grid resolution
+(\code{scripts/verify\_tradeoff.py}). The third check
+in particular gives us confidence that the scheduler's lemma-driven
+decisions and the simulator's energy accounting are mutually
+consistent --- addressing a concern that arises because the lemma was derived analytically
+and the simulator was implemented independently.

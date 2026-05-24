@@ -1,0 +1,245 @@
+\section{Related Work}
+\label{sec:related}
+
+Carbon-aware scheduling has matured rapidly over the past four years.
+We organise prior work into four threads: (i) batch and long-running
+workloads, where the dominant approaches assume delay-tolerance and
+suspend/resume; (ii) theoretical foundations of online carbon-aware
+scheduling; (iii) the small but growing set of carbon-aware
+schedulers explicitly targeting serverless or FaaS workloads, with
+which \GreenFaaS{} most directly engages; and (iv) FaaS systems work
+on cold-starts, warm pools, and characterization, on which our cost
+model depends.
+
+\subsection{Carbon-Aware Scheduling for Batch Workloads}
+
+Wiesner et al.'s \emph{Let's Wait Awhile} \citep{wiesner2021lets}
+introduced threshold-based deferral for batch workloads and released
+the hourly carbon-intensity dataset (DE, GB, FR, US-CAISO, 2020) that
+has become the de-facto reference; we use this dataset directly in
+our evaluation (\S\ref{sec:evaluation:methodology}).
+\emph{CarbonScaler} \citep{hanafy2023carbonscaler} scales the
+parallelism of ML training jobs in response to carbon intensity,
+exploiting the elasticity of data-parallel workloads.
+Souza et al.'s \emph{GAIA} scheduler
+\citep{sukprasert2023quantifying} addresses the three-way trade-off
+between carbon, performance, and cost for batch jobs, and quantifies
+the practical limits of carbon-aware spatiotemporal shifting; the same
+group's \emph{Ecovisor} \citep{souza2023ecovisor} provides a virtual
+energy system abstraction. Google's Carbon-Intelligent Compute
+\citep{radovanovic2023google} deploys a Variable Capacity Curve
+approach at production scale.
+\emph{LACS} \citep{bostandoost2024lacs} is a learning-augmented
+resource scaler addressing uncertain demand.
+\emph{Adapting Datacenter Capacity} \citep{lin2023adapting} explored
+provisioning to track grid carbon.
+
+These works share two structural assumptions that \GreenFaaS{}
+relaxes. \emph{First}, the schedulable units are \emph{jobs} with
+cost separable per-job, allowing the schedulers to reason about each
+job's deferral in isolation. FaaS invocations are not separable in
+this sense because their cost is coupled through warm-pool state,
+which we formalize in \S\ref{sec:problem}. \emph{Second}, the
+schedulers operate on a timescale (minutes to hours) where cold-start
+penalties are negligible. We show empirically in
+\S\ref{sec:evaluation} that naively transplanting these techniques to
+FaaS workloads --- as the Wait-Awhile baseline does ---
+\emph{more than doubles} operational carbon relative to a
+carbon-unaware FIFO baseline (163--236\% above FIFO across our
+synthetic and real-carbon experiments). The ``batch schedulers don't
+transfer'' claim is therefore not only intuitively obvious from the
+assumption mismatch but also empirically severe.
+
+\subsection{Theoretical Foundations}
+
+A recent line of work has put carbon-aware online algorithms on
+firmer footing. Lechowicz et al.'s \emph{Online Pause and Resume
+Problem} \citep{lechowicz2024online} studies a one-dimensional model
+in which a workload can be paused during high-carbon periods and
+resumed during low-carbon periods, paying a fixed switching cost.
+They derive double-threshold algorithms with provably optimal
+competitive ratios. These theoretical results apply to a workload
+model that is in several respects strictly simpler than ours: a
+single workload (no multi-tenant mix), one machine (no spatial
+routing), and a single switching cost (no idle-energy accumulation).
+The FaaS setting we study introduces three structural features ---
+per-invocation cold-start versus warm-pool trade-offs, spatial
+routing across regions, and tiered SLA constraints --- that take us
+outside the class of problems for which competitive-ratio bounds are
+currently known. We are explicit in \S\ref{sec:problem:online} that
+\GreenFaaS{} is an empirical scheduler with a \emph{local}
+analytical guarantee (Lemma~\ref{lemma:tradeoff}'s break-even
+characterization) rather than a competitively-optimal one. Extending
+\citep{lechowicz2024online} to handle warm-pool idle energy and SLA
+tiering is an open direction we identify in \S\ref{sec:discussion}.
+
+\subsection{Carbon-Aware FaaS and Serverless}
+\label{sec:related:faas}
+
+Five recent systems target serverless workloads specifically; each
+covers a different facet of the design space.
+
+\paragraph{GreenCourier \citep{chadha2023greencourier}.} The closest
+single-function spatial-routing precedent: a Kubernetes scheduler
+plugin that routes serverless functions across geographically
+distributed Knative clusters based on real-time grid carbon intensity.
+It reports 9--18\% carbon reduction per invocation with negligible
+latency overhead. GreenCourier and \GreenFaaS{} share the high-level
+goal but differ in three significant respects.
+\emph{First}, GreenCourier is \emph{spatial-only} --- it routes
+functions to the cleanest available region, with no temporal deferral
+and no warm-pool reasoning. Our headline contribution beyond
+GreenCourier is therefore the joint spatial/temporal/warm-pool policy
+and the underlying trade-off analysis.
+\emph{Second}, GreenCourier has no analytical model of the warm-pool
+versus cold-start carbon trade-off; our Lemma~\ref{lemma:tradeoff}
+gives a closed-form characterization that becomes essential as soon
+as the scheduler reasons about \emph{whether} to maintain a warm
+pool.
+\emph{Third}, GreenCourier's reported savings (9--18\%) sit at the
+lower end of what our headline results suggest is achievable; we
+attribute this to the spatial-only scope rather than to algorithmic
+deficiencies in GreenCourier itself.
+
+\paragraph{Caribou \citep{gsteiger2024caribou}.} Caribou is the
+closest recent system in scope at the workflow level. It offloads
+serverless \emph{workflows} (multi-function DAGs) across
+geo-distributed regions for sustainability, automatically
+(re-)deploying functions and redirecting traffic to lower-carbon
+endpoints. Caribou requires no changes to application logic and
+preserves performance and cost metrics. Its scope is workflow-level
+spatial (no temporal deferral, no per-invocation warm-pool
+reasoning), with decisions made at deployment time and refreshed by
+periodic redeployment rather than per invocation.
+
+We compare head-to-head in \S\ref{sec:evaluation:caribou} by porting
+Caribou's deployment-solver logic to our per-invocation workload as
+a single-node DAG case, with perfect carbon forecasting and constant
+token-bucket grant (both favourable to Caribou). The finding:
+Caribou(1h) and \GreenFaaS{} achieve carbon savings that differ by less than 0.1 percentage points
+on our 24h FaaS slices; the two systems are operationally distinct
+but empirically equivalent on per-invocation workloads with hour-scale
+carbon variation. The systems are complementary along the granularity
+axis: Caribou makes coarse-grained, deployment-time placement decisions
+for whole workflows; \GreenFaaS{} makes fine-grained, per-invocation
+decisions including warm-pool reasoning. A natural composition would
+use Caribou for workflow placement and \GreenFaaS{} for per-invocation
+scheduling within each chosen region; we have not implemented this
+composition.
+
+\paragraph{EcoLife \citep{jiang2024ecolife}.} EcoLife targets the
+hardware-generation axis: it co-optimizes \emph{operational} and
+\emph{embodied} carbon by exploiting multi-generation hardware (newer
+servers are faster but have higher embodied carbon per unit time;
+older servers are slower but already amortised). It uses a Particle
+Swarm Optimisation-based scheduler that decides, per invocation, which
+hardware generation to execute on. EcoLife explicitly reasons about
+keep-alive (warm-pool) versus cold-start trade-offs --- which makes
+it the closest precedent for our Lemma~\ref{lemma:tradeoff} --- but
+it does so through a metaheuristic optimizer without a closed-form
+characterization. The two contributions are largely orthogonal:
+EcoLife answers ``on what hardware generation should this function
+execute?''; \GreenFaaS{} answers ``in what region and at what time
+should this function execute, and is a warm pool worth maintaining
+there?''. A scheduler combining the two axes is a natural follow-up
+(\S\ref{sec:discussion:embodied}).
+
+\paragraph{CASA \citep{qi2024casa}.} CASA is the closest recent
+single-cluster, autoscaling-focused competitor. It is an SLO- and
+carbon-aware framework that schedules and autoscales containers in a
+serverless cluster, explicitly trading off the SLO cost of cold-starts
+against the carbon cost of pre-warming and keep-alive. CASA reports up
+to a $2.6\times$ reduction in operational carbon while reducing SLO
+violations by up to $1.4\times$ over a state-of-the-art baseline. The
+follow-on work \citep{qi2024wastewater} extends the same multi-objective
+framework to co-optimize wastewater alongside carbon and SLOs. CASA
+and \GreenFaaS{} address overlapping concerns through different
+mechanisms. CASA's contribution is a carbon-aware autoscaling and
+container-placement policy in a single cluster, evaluated by simulation
+against a state-of-the-art autoscaler. \GreenFaaS's contribution is a
+closed-form trade-off characterization
+(Lemma~\ref{lemma:tradeoff}) that yields a parameter-free per-invocation
+decision rule, combined with a multi-region routing policy and a
+formal do-no-harm property
+(\S\ref{sec:evaluation:topology},
+\S\ref{sec:evaluation:realtopology}). Where CASA establishes that
+carbon-aware autoscaling is worthwhile, \GreenFaaS{} establishes the
+analytical conditions under which warm-pool maintenance is itself
+carbon-positive --- a question CASA's heuristics do not pose
+explicitly. The two approaches could be composed at different
+granularities: CASA at the container-pool autoscaling layer, \GreenFaaS{}
+at the per-invocation routing-and-warm-pool-gate layer.
+
+\paragraph{GreenWhisk \citep{greenwhisk}.} GreenWhisk is a
+system-level redesign of Apache OpenWhisk to expose energy and carbon
+state to load-balancing algorithms, supporting both grid-connected and
+grid-isolated modes. Its contribution is infrastructural: an
+energy-interface API and a carbon-aware load-balancer integrated into
+a production-grade FaaS platform. The scheduling algorithm itself is
+intentionally minimal in scope; the value is the open-platform
+abstraction. \GreenFaaS's algorithmic and analytical contributions are
+compatible with this abstraction: a production GreenWhisk deployment
+could load Algorithm~\ref{alg:greenfaas} as its load-balancing policy
+without changes to either side. GreenWhisk's two-mode design (grid
+intermittency) is a deployment dimension our analysis does not address
+and that an integration would have to handle separately.
+
+\paragraph{CASPER \citep{souza2024casper}.} Adjacent rather than
+directly competing: targets distributed web services (MediaWiki-class
+applications) under latency SLOs, using a mixed-integer program to
+jointly provision servers and load-balance requests across cloud
+regions. It addresses spatial routing and provisioning with SLO
+constraints but treats requests at the application level (request
+rates, not per-invocation arrivals) and does not engage with
+cold-start economics. We position \GreenFaaS{} as the per-invocation,
+FaaS-native analogue of CASPER, with the cold-start trade-off model as
+a key technical distinction.
+
+\subsection{Serverless Cold-Starts and Characterisation}
+
+Our cost model in \S\ref{sec:problem} and the SLA-tiered policy in
+\S\ref{sec:algorithm:sla} depend on a substantial body of FaaS
+systems work. \emph{Serverless in the Wild}
+\citep{shahrad2020serverless} is the canonical characterization of
+production Azure Functions workloads; it established that
+invocations are dominated by a small number of high-frequency
+``hot'' functions, that durations follow heavy-tailed distributions,
+and that arrival processes are bursty and event-driven. Our workload
+generator and the function popularity model (Zipf with $s = 1.2$)
+follow this characterization directly. The follow-up
+\emph{Azure Functions Invocation Trace 2021}
+\citep{zhang2021faster,azuretrace} gives per-invocation records over
+two weeks; we use its schema as the basis for our trace loader
+(\S\ref{sec:evaluation:methodology}).
+
+The cold-start problem itself has a rich literature.
+\emph{Catalyzer} \citep{du2020catalyzer} and \emph{Firecracker}
+\citep{agache2020firecracker} attack cold-starts at the system level
+via micro-VM and snapshot techniques. \emph{FaaSCache}
+\citep{fuerst2021faascache} frames warm-pool management as a caching
+problem and derives keep-alive policies from caching theory. We
+borrow the warm-pool / keep-alive abstraction directly, but add the
+carbon dimension: idle energy at intensity $C_r$ in region $r$ is
+itself a cost that the scheduler must trade off against cold-start
+energy at potentially different $C$. This is the substance of our
+Lemma~\ref{lemma:tradeoff}.
+
+A parallel measurement-focused line of work makes it possible to
+attribute per-invocation carbon footprints to FaaS workloads with
+high accuracy. \emph{Accountable Carbon Footprints}
+\citep{sharma2024accountable} develops a Shapley-value-based
+disaggregation methodology that fairly attributes shared hardware and
+software emissions to individual function invocations, achieving
+$>$99\% accuracy on a wide range of workloads. This work is
+methodologically orthogonal --- it measures, we schedule --- but a
+production-grade carbon-aware scheduler should integrate with such a
+measurement substrate to close the loop from decisions to observed
+outcomes.
+
+\paragraph{Summary of positioning.} To our knowledge, no prior work
+has formalized the cold-start carbon trade-off in closed form,
+demonstrated the temporal-axis idle-energy correction
+(\S\ref{sec:tradeoff:idle}), or established a do-no-harm property
+across topology, SLA-mix, forecast-accuracy, and carbon-variability
+axes. These are the empirical and analytical novelties on which the
+rest of the paper builds.

@@ -1,0 +1,244 @@
+\section{Production Deployment Architecture}
+\label{sec:deployment}
+
+This section addresses an obvious reviewer concern: the headline
+results of \S\ref{sec:evaluation} are produced by a discrete-event
+simulator (\S\ref{sec:simulator}), not by a deployed system. The
+validity of conclusions like the Wait-Awhile +305\% inflation and
+the do-no-harm property rests on the simulator faithfully capturing
+production FaaS dynamics. This section specifies a concrete
+production-validation architecture on Knative (the de facto
+open-source FaaS platform), identifies the semantic mismatches with
+our simulator, and proposes mitigations. We have not deployed this
+architecture; the discussion is part deployment plan, part
+limitations statement.
+
+\subsection{Component Mapping: Simulator to Knative}
+\label{sec:deployment:mapping}
+
+\paragraph{Break-even gate (Lemma~\ref{lemma:tradeoff}).}
+The closed-form break-even rate $\lambda^*$ that gates region
+admission becomes a Kubernetes Custom Resource maintained by a
+custom Operator. The Operator periodically (every $\sim 60$\,s) polls
+ElectricityMaps via the same fetch protocol used in
+\code{scripts/fetch\_electricitymaps.py}, queries Prometheus for the
+arrival-rate estimator $\hat\lambda$ produced by the
+\code{ArrivalRateTracker} of Algorithm~\ref{alg:greenfaas}, and
+publishes a per-region \code{ConfigMap} indicating whether the
+spatial or temporal regime is active. The Operator never makes
+per-invocation decisions; it only updates platform state at
+$\sim$minute granularity, leaving per-invocation routing to the
+proxy below.
+
+\emph{Caveat on poll latency.} A 60-second Operator poll interval
+means up to one minute of staleness in the regime classification
+during rapid carbon-intensity shifts (e.g., a wind front passing
+through Germany at midnight). This produces up to one minute of
+mis-routing for invocations dispatched between an intensity change
+and the next Operator update. The bound is benign for slow-varying
+grids (where intensity rarely moves more than 5\% per minute) but
+worth instrumenting in production: log the Operator update timestamps
+to OpenTelemetry alongside the routing decisions, so post-hoc
+attribution of mis-routing to poll latency is possible.
+
+\paragraph{Per-invocation routing.}
+The natural injection point for per-invocation \GreenFaaS{}
+decisions is \emph{not} the Kubernetes Scheduler (which routes pods
+to nodes within a cluster, not invocations to clusters across
+regions). Instead, we propose a sidecar in the Knative
+\code{Activator} flow. The Activator already sits between the Knative
+\code{Service} ingress and the function pods, mediating cold starts;
+adding a \GreenFaaS{} decision pass before the Activator forwards
+the request is mechanically straightforward.
+
+The proxy reads the \code{ConfigMap}, computes the per-invocation
+score from Algorithm~\ref{alg:greenfaas}, and either (a) holds the
+request locally (temporal deferral, $\Delta t \le$ class-dependent
+budget) and forwards to the local Activator when the deferral
+completes, or (b) rewrites the request URL to the alternate cluster's
+Activator and forwards. The local Activator then handles cold-start
+detection and pod-warming as it does today; our policy only changes
+\emph{which} cluster sees the request.
+
+\paragraph{Cross-cluster forwarding.}
+Cross-cluster forwarding requires that all participating clusters
+share a function-image registry and that requests carry sufficient
+identifying information (function name, request payload). Knative's
+existing multi-tenant model handles this through the
+\code{Service.serving.knative.dev/cluster-local} annotation; for
+multi-region deployment, each region runs an identically-named
+Knative \code{Service}, and the proxy targets the alternate region's
+ingress URL. No changes to Knative itself are required.
+
+\subsection{Replacing the Power Model}
+\label{sec:deployment:power}
+
+The simulator's $P_a = 4$\,W active, $P_i = 0.3$\,W idle is a
+calibration to typical container-level draws on a server-class CPU.
+Production validation requires \emph{measured} power, not assumed.
+
+\paragraph{Kepler.}
+\code{Kepler} (Kubernetes-based Efficient Power Level Exporter)
+\citep{kepler} uses eBPF to attribute CPU and memory energy
+consumption to individual pods on the Kubelet. A pod's energy draw
+during execution is measured at sub-second resolution and published
+to Prometheus. For warm-but-idle pods, Kepler measures the residual
+draw (typically dominated by background runtime and language-VM
+overhead rather than the function code itself), giving an empirical
+$P_i$ that may differ from our 0.3\,W assumption by a substantial
+factor depending on the runtime.
+
+The relevance for our paper is that $\beta = P_i T_w / (P_a \tau_e)$
+is the dimensionless quantity governing both the
+Lemma~\ref{lemma:tradeoff} break-even and
+Conjecture~\ref{conj:lech-lb}'s asymptotic lower bound;
+production-measured $\beta$ via Kepler is what determines the realized
+empirical behavior. If Kepler-measured $\beta$ on the chosen Knative
+runtime differs from our 150 by a factor of 2--3, the qualitative
+conclusions of \S\ref{sec:evaluation} should reproduce, but the
+quantitative magnitudes will shift.
+
+\paragraph{Kepler measurement caveats.} eBPF-based per-pod power
+attribution has known accuracy limitations: published Kepler
+benchmarks report 5--15\% per-pod attribution error depending on
+workload type (compute-bound functions show lower error than
+I/O-bound ones; co-resident pods sharing a CPU socket are harder to
+disentangle). This uncertainty propagates directly to $\beta = P_i
+T_w / (P_a \tau_e)$: a 10\% error on $P_i$ produces a 10\% error on
+$\beta$, which in turn produces a similar-magnitude error on the
+Lemma~\ref{lemma:tradeoff} break-even rate $\lambda^*$. A production
+deployment should therefore report $\beta$ and $\lambda^*$ with
+explicit confidence intervals derived from Kepler's measurement
+uncertainty, and verify that the qualitative conclusions of
+\S\ref{sec:evaluation} are robust to $\beta$ varying within
+$[100, 200]$.
+
+\paragraph{Carbon attribution.}
+Per-pod energy is converted to carbon by multiplying by the
+ElectricityMaps-reported $C(t)$ of the cluster's region at execution
+time. This is the same model the simulator uses; the only
+difference is that the energy term is measured rather than computed.
+
+\subsection{Latency and SLA Instrumentation}
+\label{sec:deployment:latency}
+
+The simulator tracks latency as $\mathrm{Lat}_k = (s_k - t_k) +
+\tau_e + \mathbf{1}[\text{cold}] \tau_c + \mathrm{RTT}(r_k)$. Production
+latency includes everything the simulator omits: ingress overhead,
+TLS handshake variance, pod scheduling jitter, image-pull delay if
+the image is not pre-pulled, language-VM cold-start variance, and
+network jitter on cross-region forwards. SLA violations could
+plausibly come from any of these sources, not just the
+\GreenFaaS{}-induced deferral that the simulator models.
+
+\paragraph{OpenTelemetry traces.}
+The proxy sidecar emits distributed traces tagged with
+\GreenFaaS{}'s decision (commit time, target region, cold/warm
+classification at decision time) and the realized latency components
+above. The trace collection backend stores these per-invocation, and
+the analysis pipeline computes the SLA violation rate, attributed by
+component. This separates ``\GreenFaaS{} caused the violation by
+deferring too long'' from ``\GreenFaaS{} forwarded to a region where
+the Activator had a cold-start spike unrelated to our policy.''
+
+\subsection{Semantic Mismatch: $T_w$ Granularity}
+\label{sec:deployment:mismatch}
+
+The most consequential semantic mismatch between our simulator
+(and Lemma~\ref{lemma:tradeoff}) and Knative is the granularity of
+the warm-pool TTL. The simulator models $T_w$ as a per-container
+property: each warm container expires exactly $T_w$ seconds after
+its last invocation. Knative's KPA (Knative Pod Autoscaler)
+maintains $T_w$ as a per-\code{Revision} property
+(\code{scale-to-zero-grace-period}), not per-pod, and the
+scale-to-zero decision is made by a controller poll at the configured
+interval, not exactly at the TTL boundary.
+
+The practical consequence: Knative's effective $T_w$ for a
+\emph{specific} pod can range from $T_w$ to $T_w + \delta$ where
+$\delta$ is the controller poll interval (default 60\,s). The
+$\lambda^*$ computed by Lemma~\ref{lemma:tradeoff} is therefore an
+\emph{approximation} of the production-realized break-even rate; the
+approximation error is bounded by $\delta / T_w$, around 10\% for
+default Knative settings.
+
+\paragraph{Mitigation.}
+Two production configurations tighten this:
+(i) set Knative's \code{container-concurrency: 1} so each warm pod
+serves one invocation at a time (matching our single-container
+model exactly), and (ii) reduce the controller poll interval to
+$\le 5$\,s. Together these bring the simulator-vs-production
+$T_w$ mismatch below 1\%.
+
+\emph{Caveat on aggressive polling at scale.} A 5-second poll
+interval increases API-server load proportionally; on clusters with
+$>$1000 \code{Revision} objects, the load increase can require
+horizontal scaling of the \code{kube-apiserver} and add measurable
+latency to other control-plane operations. A production deployment
+at scale should benchmark the API-server load impact and consider
+intermediate values (e.g., 15\,s) that retain most of the $T_w$
+fidelity while keeping control-plane overhead acceptable. For
+\GreenFaaS{}'s purposes, even a 30-second poll interval keeps the
+$T_w$ mismatch under 5\%, which is small compared to the
+Kepler-induced uncertainty on $\beta$ noted in
+\S\ref{sec:deployment:power}.
+
+\subsection{Cold-Start Variance}
+\label{sec:deployment:coldstart}
+
+The simulator treats $\tau_c$ as a constant per-function property
+(typically $1$\,s in our catalog). Knative cold starts have orders
+of magnitude more variance, driven by: image-pull time from the
+container registry (10\,ms--30\,s depending on cache state),
+runtime initialization (sub-second for compiled languages,
+multi-second for Python/Node with heavy dependency graphs), and
+network setup (typically 100--500\,ms).
+
+\paragraph{Mitigation.}
+A \code{DaemonSet} that pre-pulls function images to every node
+removes the dominant variance source. With pre-pulled images and a
+fast runtime (Go or compiled Node), production $\tau_c$ converges to
+$200$--$500$\,ms with low variance, close to our simulator's
+$1$\,s default. The simulator's $\tau_c$ should be re-calibrated
+against Kepler-measured cold-start durations once the deployment is
+running; if production $\tau_c$ differs significantly from $1$\,s,
+the $\alpha = \tau_c / \tau_e$ ratio in Lemma~\ref{lemma:tradeoff}
+shifts and $\lambda^*$ should be recomputed.
+
+\subsection{What This Validates and What It Does Not}
+\label{sec:deployment:validates}
+
+A production deployment built as above would validate:
+\begin{itemize}
+\item Whether the Wait-Awhile and Lechowicz failure modes
+(\S\ref{sec:evaluation:lechowicz}) reproduce on a real platform
+with real Kepler-measured energy.
+\item Whether the do-no-harm property
+(\S\ref{sec:evaluation:fine-donoharm}) holds when production
+$T_w$ has the controller-poll jitter described above.
+\item Whether the \GreenFaaS{}-Spatial gap stays within our
+empirical 0.058pp $\pm$ 0.032pp range
+(\S\ref{sec:evaluation:realboth}) under production conditions.
+\end{itemize}
+
+It would \emph{not} resolve Conjecture~\ref{conj:lech-lb}, which
+requires a formal multi-container model and an adversary
+construction; a production deployment can provide empirical support
+but not a proof.
+
+The deployment also exposes a class of issues the simulator does not
+model: cross-region network partitions, controller failures during a
+scale-to-zero event, and registry availability for cold-start
+image-pulls. These are infrastructure-reliability issues rather than
+scheduling-policy issues; we treat them as orthogonal.
+
+\paragraph{Why we have not done this.}
+A full production validation requires multi-region Kubernetes
+clusters with Knative installed, Kepler integration, an
+ElectricityMaps subscription with sufficient quota, and several
+days of running representative workloads. Our build environment does
+not provide cluster resources, and the validation is a non-trivial
+engineering project rather than a paper-revision task. We treat the
+architecture described above as a concrete plan for follow-up work,
+and note it as the most consequential validation step still
+remaining.

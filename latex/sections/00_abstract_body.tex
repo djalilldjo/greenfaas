@@ -1,0 +1,81 @@
+Data centres' growing electricity footprint has motivated a body of
+research on carbon-aware scheduling, in which workloads are shifted in
+time or space to coincide with cleaner electricity. Much of the
+foundational carbon-aware scheduling literature, however, targets
+batch or long-running jobs, while recent FaaS-specific systems each
+address only part of the spatial, temporal, hardware, and autoscaling
+design space. The assumptions of the batch-oriented systems
+--- minutes-to-hours runtime, delay tolerance, and clean
+suspend/resume --- are profoundly violated by serverless or
+Function-as-a-Service (FaaS) workloads. FaaS functions execute in
+milliseconds to seconds, often under sub-second SLAs, suffer
+expensive cold starts when interrupted, and arrive in bursty,
+event-driven patterns.
+
+We present \GreenFaaS, a carbon-aware scheduling framework for
+serverless workloads that unifies three decisions previously treated
+separately: spatial routing across regions, temporal deferral within
+SLA bounds, and warm-pool-aware container reuse. Four prior FaaS-targeted
+carbon-aware schedulers cover different facets of the design space:
+\emph{GreenCourier} \citep{chadha2023greencourier} routes single
+functions to low-carbon regions; \emph{Caribou} \citep{gsteiger2024caribou}
+shifts whole serverless workflows geographically; \emph{EcoLife}
+\citep{jiang2024ecolife} exploits multi-generation hardware; and
+\emph{CASA} \citep{qi2024casa} co-optimizes autoscaling and SLOs within
+a single cluster. \GreenFaaS{} is the first to give a closed-form
+joint analysis of the spatial and temporal axes under cold-start
+economics, and to demonstrate empirically-validated robustness across topology and
+workload regimes.
+
+The paper's principal analytical contribution is a closed-form
+\emph{cold-start carbon trade-off}: we prove a dichotomy in which the
+warm-pool placement decision is governed by a dimensionless idle-cost
+ratio $\beta = P_i T_w / (P_a \tau_e)$ relative to a critical
+threshold $(r-1)(1+\alpha)$, with a closed-form break-even condition and a unique critical
+arrival rate $\lambda^*$ --- the root of a monotone scalar equation
+--- separating the regimes. The same idle-cost ratio governs
+the analogous temporal-shift trade-off with the deferral interval
+$\Delta t$ in place of $T_w$, giving the scheduler principled
+decision rules along both axes.
+
+We evaluate \GreenFaaS{} in a discrete-event simulator, driven by a
+schema-faithful synthetic workload calibrated to the Azure Functions
+2019 and 2021 characterizations and by real grid carbon-intensity
+data from Let's-Wait-Awhile \citep{wiesner2021lets,lwa} and from
+ElectricityMaps over the same January 2021 window as the Azure trace,
+against four carbon-aware baselines representative of recent work.
+Three findings stand out.
+\emph{First}, \GreenFaaS{} reduces operational carbon by 68--83\% relative to FIFO across
+a range of topologies on fully-real time-aligned data (real Azure
+2021 trace + real ElectricityMaps Jan 2021 carbon), and 64--72\% on
+synthetic-workload setups. On fully-real time-aligned data the
+\GreenFaaS{}--Spatial gap is 0.04 percentage points; across all
+topologies on real-carbon data the gap stays within 0.5pp.
+\GreenFaaS's distinct value over Spatial is topology-robustness
+rather than dominance in any single regime.
+\emph{Second}, \GreenFaaS{} preserves a \emph{do-no-harm} property
+that extends beyond zero-opportunity workloads to a robust
+neighbourhood of low-opportunity ones: across shiftable fractions
+$\{0, 1\%, 2\%\}$ and in single-region scenarios on both synthetic
+and fully-real data, \GreenFaaS{} matches FIFO byte-for-byte; a
+heuristic ablation lacking the cold-start trade-off correction loses
+5--102\% to FIFO in the same scenarios.
+\emph{Third}, the canonical Wait-Awhile temporal scheduler and a
+FaaS-adapted port of the provably-optimal one-way trading algorithm
+of \citet{lechowicz2024online} both \emph{fail} on FaaS workloads,
+losing 3--306\% to FIFO depending on the regime --- catastrophically
+(up to $-306\%$) at batch-default deferral horizons on synthetic
+workloads, and mildly (3--5\%) on fully-real data where they
+degenerate toward a FIFO no-op. In neither regime do they reduce carbon: a clean
+failure mode for batch carbon-aware techniques on FaaS, including
+those with provable competitive guarantees, when warm-pool
+idle-energy coupling is not accounted for. Head-to-head against the closest competing
+serverless system, \emph{Caribou} \citep{gsteiger2024caribou}, well-tuned
+Caribou (hourly re-deployment with perfect carbon forecasting) and
+\GreenFaaS{} achieve statistically indistinguishable carbon savings (within 0.1pp) on real Azure
+2021 workload; the difference is operational rather than empirical,
+with \GreenFaaS{} avoiding the container migration and pub/sub
+orchestration that Caribou requires.
+The simulator, scheduler, trace loaders, Caribou port, and
+real Azure Functions and ElectricityMaps integrations are released as
+open-source artifacts under the Apache-2.0 license upon publication.

@@ -1,0 +1,58 @@
+\subsection{Fine-Grained Do-No-Harm}
+\label{sec:evaluation:fine-donoharm}
+
+The do-no-harm property reported in
+\S\ref{sec:evaluation:topology} and
+\S\ref{sec:evaluation:realtopology} (\GreenFaaS{} = FIFO byte-for-byte
+in single-region or zero-shiftable settings) admits a fair concern:
+when the workload offers \emph{no} shifting opportunity, every
+reasonable scheduler is trivially identical to FIFO. A more
+substantive test is whether \GreenFaaS{} degrades \emph{gracefully}
+across the regime of very small but nonzero shifting opportunity ---
+where the scheduler actually has decisions to make but the carbon
+upside is marginal, and a naively eager scheduler could pay
+non-trivial idle-energy cost for negligible savings.
+
+\begin{table}[h]
+\centering\small
+\caption{Fine-grained shiftable-fraction sweep. Real LWA carbon,
+5 regions, 6h, $\sim$43k invocations. ``Gap'' is carbon reduction vs
+FIFO (positive = better than FIFO).}
+\label{tab:fine-donoharm}
+\begin{tabular}{rrrrr}
+\toprule
+Shiftable frac. & FIFO (g) & GreenFaaS gap & v1 gap & Spatial gap \\
+\midrule
+0.00          & 6.20 & +0.00\%  & +0.00\%  & +0.00\%  \\
+0.01          & 6.20 & +0.00\%  & +0.00\%  & +0.00\%  \\
+0.02          & 6.20 & +0.00\%  & +0.00\%  & +0.00\%  \\
+0.05          & 6.20 & +3.64\%  & +4.14\%  & +4.14\%  \\
+0.10          & 6.20 & +3.64\%  & +4.14\%  & +4.14\%  \\
+0.25          & 6.20 & +21.3\%  & +22.0\%  & +22.0\%  \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The findings refine the do-no-harm claim into something more
+substantive. At very low shiftable fractions (0, 1\%, 2\% of the
+workload), \GreenFaaS{}, GreenFaaS-v1, and Spatial all match FIFO
+\emph{byte-for-byte}. This is not the trivial property
+``no-shifting-implies-FIFO'' but the stronger property that
+\GreenFaaS{} correctly identifies negligible-opportunity regimes and
+declines to act. As the shiftable fraction grows past a small
+threshold (around 5\% here), the carbon-aware schedulers begin
+diverging from FIFO smoothly, with \GreenFaaS{} producing slightly
+smaller savings than Spatial or v1 in this region --- the
+\S\ref{sec:tradeoff:idle} correction is conservative when in doubt,
+which is the desired behaviour for a deployment-ready scheduler.
+
+The regime where \GreenFaaS{}'s conservatism becomes an advantage
+appears at higher shiftable fractions where carbon variability is
+high and idle-energy cost is non-trivial; the
+\S\ref{sec:evaluation:variability} variability sweep (and the v1
+collapse documented there) is the empirical evidence for this.
+
+The interpretation: do-no-harm is not just ``correctly idle
+when there are no decisions to make,'' but ``correctly idle across a
+neighbourhood of low-opportunity workloads,'' which is the practical
+shape of the property that matters for deployment.

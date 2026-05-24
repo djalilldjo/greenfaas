@@ -1,0 +1,107 @@
+%% GreenFaaS: Carbon-Aware Scheduling for Serverless Workloads
+%% Elsevier journal submission (review version, single column, line-numbered).
+%%
+%% To compile: ./build-elsevier.sh
+%% To switch to camera-ready, change the document class option
+%%   `review' -> `final' below.
+
+\documentclass[final,3p,authoryear]{elsevier/elsarticle}
+
+% Tell LaTeX where to find the local copies of the class and BST files.
+% (already loaded above; the BST file is referenced at the bottom.)
+
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage[T1]{fontenc}
+\usepackage[hidelinks]{hyperref}
+
+% --- Tighter list spacing.
+\usepackage{enumitem}
+\setlist{itemsep=0.25ex,topsep=0.5ex,parsep=0.25ex}
+
+% --- Theorem environment for Lemma 1.
+\newtheorem{lemma}{Lemma}[section]
+\newtheorem{theorem}[lemma]{Theorem}
+\newtheorem{conjecture}[lemma]{Conjecture}
+
+% --- Code-style font for short fragments.
+\newcommand{\code}[1]{\texttt{\small #1}}
+
+% --- Common notation shortcuts used in §4 and §5.
+\newcommand{\GreenFaaS}{\textsc{GreenFaaS}}
+\newcommand{\Interactive}{\textsc{Interactive}}
+\newcommand{\Deferrable}{\textsc{Deferrable}}
+\newcommand{\Background}{\textsc{Background}}
+
+\journal{Future Generation Computer Systems}
+
+\begin{document}
+
+\begin{frontmatter}
+
+\title{\GreenFaaS: Carbon-Aware Scheduling for Serverless Workloads}
+
+% Single-anonymous review (FGCS default): author/affiliation block visible.
+% For DOUBLE-anonymous review, comment this block out and uncomment the
+% placeholder below.
+\author[icosi]{Abdeldjalil Ledmi\corref{cor1}}
+\ead{abdeldjalil.ledmi@univ-khenchela.dz}
+\author[icosi]{Makhlouf Ledmi}
+\ead{ledmi.makhlouf@univ-khenchela.dz}
+\author[icosi]{Mohammed El Habib Souidi}
+\ead{souidi.mohammed@univ-khenchela.dz}
+\author[icosi]{Nabil Azizi}
+\ead{azizi.nabil@univ-khenchela.dz}
+\author[icosi]{Abdelkarim Oucif}
+\ead{oucif.abdelkarim@univ-khenchela.dz}
+\author[icosi]{Ferial Laassami}
+\ead{ferial.laassami@univ-khenchela.dz}
+\author[icosi]{Hichem Haouassi}
+\ead{haouassi.hichem@univ-khenchela.dz}
+\author[icosi]{Toufik Messaoud Maarouk}
+\ead{maarouk.toufik@univ-khenchela.dz}
+
+\affiliation[icosi]{organization={Department of Computer Science, ICOSI Lab, Abbes Laghrour University of Khenchela},
+  city={Khenchela},
+  postcode={40000},
+  country={Algeria}}
+
+\cortext[cor1]{Corresponding author.}
+
+% --- Double-anonymous review placeholder (uncomment if required) ---
+% \author{Anonymous Author(s)}
+% \address{Affiliation withheld for double-anonymous review}
+
+\begin{abstract}
+\input{sections/00_abstract_body}
+\end{abstract}
+
+\begin{keyword}
+carbon-aware scheduling \sep serverless \sep
+Function-as-a-Service \sep cold start \sep sustainable computing
+\end{keyword}
+
+\end{frontmatter}
+
+\input{sections/01_introduction}
+\input{sections/02_related_work}
+\input{sections/03_motivation}
+\input{sections/04_problem_formulation}
+\input{sections/04_3_tradeoff_lemma}
+\input{sections/05_algorithm}
+\input{sections/06_simulator}
+\input{sections/07_evaluation}
+\input{sections/09_theory}
+\input{sections/10_deployment}
+\input{sections/08_discussion}
+\input{sections/09_conclusion}
+
+\bibliographystyle{elsevier/elsarticle-num-names}
+\bibliography{references}
+
+\end{document}
