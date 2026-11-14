@@ -23,7 +23,8 @@ greenfaas/            core library
 ├── carbon.py           carbon-intensity models (synthetic + real-trace loaders)
 ├── workload.py         synthetic workload generator (Poisson/diurnal/Zipf)
 ├── tradeoff.py         the cold-start carbon trade-off lemma (Lemma 1)
-├── schedulers.py       FIFO, Spatial, Wait-Awhile, Lechowicz, Caribou, GreenFaaS
+├── schedulers.py       FIFO, Spatial, Wait-Awhile, Lechowicz, Caribou,
+│                        GreenCourier, GreenFaaS
 ├── simulator.py        discrete-event simulator with capacity + warm-pool model
 └── traces/             Azure 2019/2021 + carbon CSV loaders
 
@@ -64,6 +65,21 @@ python scripts/verify_tradeoff.py
 # Reproduce the synthetic topology sweep
 python scripts/scenario_sweep.py
 ```
+
+## Revision experiments (v1.1.0)
+
+The experiments added for the IEEE TSC revision each write one CSV under
+`results/`:
+
+| Script | Output | What it shows |
+|---|---|---|
+| `scripts/run_multibaseline.py` | `multibaseline_canonical.csv` | Eight schedulers (incl. the GreenCourier-style baseline) on the canonical workload: multi-region and single-region DE/GB/CAISO |
+| `scripts/run_multibaseline.py --catalog long-deadline` | `multibaseline_long_deadline.csv` | The same comparison on a stress workload with 15-60 min deferrable deadlines |
+| `scripts/run_interactive_guard.py` | `interactive_guard.csv` | GreenFaaS vs GreenCourier at equal interactive-routing guards, with interactive latency |
+| `scripts/run_runtime_crossover.py` | `runtime_crossover.csv` | Job runtime swept from 2.5 s to 1 h in single-region deployments: where temporal shifting starts to pay |
+
+All use seeds 42-44 and the real ENTSO-E / CAISO 2020 carbon traces, and
+honour `GREENFAAS_CARBON_DIR`.
 
 ## Datasets
 

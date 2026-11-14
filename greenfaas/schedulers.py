@@ -802,3 +802,68 @@ class CaribouScheduler(Scheduler):
             start_time=state.current_time,
             use_warm=use_warm,
         )
+
+# ---------------------------------------------------------------------------
+# GreenCourier-style baseline (added for the TSC revision), ported to the same
+# Scheduler interface as every scheduler above so the comparison is
+# like-for-like.
+# ---------------------------------------------------------------------------
+
+
+class GreenCourierScheduler(Scheduler):
+    """Carbon-greedy spatial router with a per-tier SLO/RTT guard.
+
+    GreenCourier-style policy (after Chadha et al., WoSC 2023), reduced to its
+    operational-carbon placement rule for this simulator. Among
+    regions whose added network RTT keeps the invocation inside its latency
+    budget, it places the request in the region of lowest *instantaneous*
+    carbon intensity and executes immediately (no temporal deferral). Unlike
+    :class:`SpatialScheduler`, it is permitted to route latency-critical
+    INTERACTIVE requests within a tight guard (``interactive_rtt_ms``), which
+    is its distinguishing design point; with ``interactive_rtt_ms=0`` it
+    reduces to home-pinned spatial routing.
+    """
+
+    name = "GreenCourier"
+
+    def __init__(
+        self,
+        interactive_rtt_ms: float = 20.0,
+        deferrable_rtt_ms: float = 80.0,
+        background_rtt_ms: float = float("inf"),
+    ):
+        self.interactive_rtt_ms = interactive_rtt_ms
+        self.deferrable_rtt_ms = deferrable_rtt_ms
+        self.background_rtt_ms = background_rtt_ms
+
+    def schedule(self, invocation, state, carbon):
+        fn = state.functions[invocation.function_id]
+        now = state.current_time
+        home = state.regions[invocation.home_region]
+
+        if fn.latency_class == LatencyClass.INTERACTIVE:
+            budget = self.interactive_rtt_ms
+        elif fn.latency_class == LatencyClass.DEFERRABLE:
+            budget = self.deferrable_rtt_ms
+        else:
+            budget = self.background_rtt_ms
+
+        candidates = [
+            r.region_id for r in state.regions.values()
+            if home.rtt_to(r) <= budget
+        ]
+        if not candidates:
+            candidates = [home.region_id]
+
+        # Carbon-greedy: lowest instantaneous intensity, ties broken on RTT.
+        chosen = min(
+            candidates,
+            key=lambda rid: (carbon.intensity(rid, now),
+                             home.rtt_to(state.regions[rid])),
+        )
+        use_warm = state.warm_count(chosen, fn.function_id) > 0
+        return ScheduleDecision(
+            region_id=chosen,
+            start_time=now,
+            use_warm=use_warm,
+        )

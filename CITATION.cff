@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "GreenFaaS: Carbon-Aware Scheduling for Serverless Workloads"
+type: software
+version: v1.1.0
+date-released: 2026-11-14
+license: Apache-2.0
+repository-code: "https://github.com/djalilldjo/greenfaas"
+doi: 10.5281/zenodo.20370236
+authors:
+  - family-names: Ledmi
+    given-names: Abdeldjalil
+    affiliation: "ICOSI Lab, Abbes Laghrour University of Khenchela, Algeria"
+  - family-names: Ledmi
+    given-names: Makhlouf
+    affiliation: "ICOSI Lab, Abbes Laghrour University of Khenchela, Algeria"
+  - family-names: Souidi
+    given-names: Mohammed El Habib
+    affiliation: "ICOSI Lab, Abbes Laghrour University of Khenchela, Algeria"
+  - family-names: Azizi
+    given-names: Nabil
+    affiliation: "ICOSI Lab, Abbes Laghrour University of Khenchela, Algeria"
+  - family-names: Oucif
+    given-names: Abdelkarim
+    affiliation: "ICOSI Lab, Abbes Laghrour University of Khenchela, Algeria"
+  - family-names: Laassami
+    given-names: Ferial
+    affiliation: "ICOSI Lab, Abbes Laghrour University of Khenchela, Algeria"
+  - family-names: Haouassi
+    given-names: Hichem
+    affiliation: "ICOSI Lab, Abbes Laghrour University of Khenchela, Algeria"
+  - family-names: Maarouk
+    given-names: Toufik Messaoud
+    affiliation: "ICOSI Lab, Abbes Laghrour University of Khenchela, Algeria"

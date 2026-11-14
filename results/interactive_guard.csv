@@ -1,0 +1,8 @@
+variant,vs_fifo_pct,vs_fifo_sd,int_mean_ms,int_p95_ms,n_seeds
+FIFO,0.0,0.0,80.6,219.4,3
+Spatial,76.68,0.31,80.6,219.4,3
+GreenFaaS_guard0,76.3,0.31,80.6,219.4,3
+GreenFaaS_guard20,80.72,0.25,88.9,227.9,3
+GreenFaaS_guard30,81.63,0.24,91.9,231.4,3
+GreenCourier_guard20,81.1,0.26,88.9,227.9,3
+GreenCourier_guard30,82.0,0.24,91.9,231.4,3
