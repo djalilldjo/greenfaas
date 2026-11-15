@@ -11,9 +11,28 @@ Design choices:
   * Two event types: ARRIVAL (scheduler decides; emits a START event in the
     future) and COMPLETION (frees a slot, warms the container for a TTL).
   * Warm-pool TTL: containers stay warm for `warm_ttl_s` after their last use,
-    after which they are evicted and their idle energy accounted for.
-  * Carbon for a warm container's idle period is attributed to the region
-    where it sat.
+    after which they are evicted.
+  * Idle energy (v1.2.0): every second a container spends warm-but-idle is
+    charged at the function's idle power, whether the container is later
+    reused or expires. This is the W_{r,f}(t) integral of the paper's
+    total-carbon equation. Carbon for an idle period is attributed to the
+    region where the container sat, at that region's mean intensity.
+  * Reuse order (v1.2.0): an invocation takes the MOST recently used warm
+    container, so containers beyond what current concurrency needs sit unused
+    and expire after the TTL. (Taking the oldest container first, as before,
+    round-robins the whole pool and keeps every container alive forever once
+    the arrival rate exceeds pool size / TTL.)
+  * Warm/cold binding (v1.2.0): whether an invocation starts warm is resolved
+    when it actually STARTS: it uses a warm container if one is available.
+    A scheduler cannot commit a future start to a cold start.
+
+Legacy behaviour (releases up to v1.1.0) is kept for reproducing the results
+of the originally submitted manuscript: `idle_accounting="expired_only"`
+charges idle energy only for containers that expire unused,
+`reuse_order="oldest"` reuses the oldest warm container first, and
+`warm_binding="decision"` freezes the warm/cold choice at decision time via
+`ScheduleDecision.use_warm`, so a deferred invocation decided while the pool
+was empty cold-starts even if a warm container exists when it starts.
 
 The simulator is single-region-agnostic; it iterates over all configured
 regions when costing warm-pool idle energy.
@@ -117,7 +136,19 @@ class Simulator:
         carbon: CarbonModel,
         scheduler: Scheduler,
         warm_ttl_s: float = 600.0,
+        warm_binding: str = "start",
+        idle_accounting: str = "full",
+        reuse_order: str = "newest",
     ):
+        if reuse_order not in ("newest", "oldest"):
+            raise ValueError("reuse_order must be 'newest' or 'oldest'")
+        self.reuse_order = reuse_order
+        if warm_binding not in ("start", "decision"):
+            raise ValueError("warm_binding must be 'start' or 'decision'")
+        if idle_accounting not in ("full", "expired_only"):
+            raise ValueError("idle_accounting must be 'full' or 'expired_only'")
+        self.warm_binding = warm_binding
+        self.idle_accounting = idle_accounting
         self.regions = regions
         self.functions = functions
         self.carbon = carbon
@@ -142,12 +173,16 @@ class Simulator:
         self.state.warm_pool[region][function] = self.state.warm_pool[region].get(function, 0) + 1
         self._warm_expires.setdefault((region, function), []).append(until)
 
-    def _consume_warm(self, region: str, function: str):
+    def _consume_warm(self, region: str, function: str) -> float:
+        """Take one warm container; return how long it had been idle (s)."""
+        idle_s = 0.0
         if self.state.warm_pool[region].get(function, 0) > 0:
             self.state.warm_pool[region][function] -= 1
             expiries = self._warm_expires.get((region, function), [])
             if expiries:
-                expiries.pop(0)
+                expiry = expiries.pop() if self.reuse_order == "newest" else expiries.pop(0)
+                idle_s = max(0.0, self.state.current_time - (expiry - self.warm_ttl_s))
+        return idle_s
 
     # ------------------------------------------------------------------ #
     # Main loop
@@ -198,15 +233,18 @@ class Simulator:
                     ))
                     continue
 
-                # Resolve cold/warm at the ACTUAL start time, not at the
-                # decision time. If the scheduler chose `use_warm=True` but
-                # no warm container is available right now (because the warm
-                # container expired during a capacity backoff, for instance),
-                # we fall back to a cold start.
+                # Resolve cold/warm at the ACTUAL start time (see module
+                # docstring for the legacy decision-time binding).
                 warm_available = self.state.warm_pool[region.region_id].get(fn.function_id, 0) > 0
-                cold = not (decision.use_warm and warm_available)
+                if self.warm_binding == "start":
+                    cold = not warm_available
+                else:  # legacy: choice frozen at decision time
+                    cold = not (decision.use_warm and warm_available)
                 if not cold:
-                    self._consume_warm(region.region_id, fn.function_id)
+                    idle_s = self._consume_warm(region.region_id, fn.function_id)
+                    if self.idle_accounting == "full":
+                        key = (region.region_id, fn.function_id)
+                        warm_lifetimes_s[key] = warm_lifetimes_s.get(key, 0.0) + idle_s
 
                 # Compute energy & carbon for the execution + cold start.
                 runtime = inv.realized_runtime_s
