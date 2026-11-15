@@ -320,6 +320,13 @@ class SimulatorModelTests(unittest.TestCase):
         # cold-start and execution time inside the first 100 s.
         self.assertGreater(ratio, 1.14)
         self.assertLess(ratio, 1.17)
+        # Exact hand computation: i1 cold-starts and finishes at
+        # t1 = cold_start + 0.3 s; the container idles until i2 arrives at
+        # 100 s, runs it warm, then idles one full keep-alive (600 s).
+        fn = fns[0]
+        idle_s = (100.0 - (fn.cold_start_s + 0.3)) + 600.0
+        expected = fn.idle_power_w * idle_s / 3.6e6 * 1.2 * 50.0
+        self.assertAlmostEqual(full, expected, places=9)
 
     def test_newest_first_reuse_lets_surplus_containers_expire(self):
         """Three simultaneous invocations create three containers; afterwards
