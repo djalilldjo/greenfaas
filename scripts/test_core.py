@@ -258,6 +258,90 @@ class SimulatorCorrectnessTests(unittest.TestCase):
         self.assertFalse(result.records[1].cold_start)
 
 
+# ---------- Tests: simulator model (v1.2.0) --------------------------------
+
+class _FixedStartScheduler:
+    """Runs every invocation at home, at arrival + delay, with a fixed
+    use_warm flag. Lets the tests control deferral and the legacy flag."""
+    name = "FixedStart"
+
+    def __init__(self, delays, use_warm=False):
+        self.delays = delays
+        self.use_warm = use_warm
+
+    def schedule(self, invocation, state, carbon):
+        from greenfaas.core import ScheduleDecision
+        return ScheduleDecision(invocation.home_region,
+                                state.current_time + self.delays.get(invocation.invocation_id, 0.0),
+                                self.use_warm)
+
+
+class SimulatorModelTests(unittest.TestCase):
+
+    def _setup(self):
+        regions = make_simple_regions(["DE"])
+        carbon = make_simple_carbon(["DE"], "DE", "DE", duration_s=3600.0)
+        fns = make_default_function_catalog()
+        return regions, carbon, fns, {f.function_id: f for f in fns}
+
+    def _inv(self, i, fn, t):
+        return Invocation(invocation_id=f"i{i}", function_id=fn.function_id,
+                          arrival_time=t, home_region="DE",
+                          realized_runtime_s=0.3, realized_memory_mb=128.0)
+
+    def test_deferred_start_uses_warm_container_available_at_start(self):
+        """i2 is scheduled at t=1 (pool empty: i1 still cold-starting is done
+        by then, but the flag says cold) to start at t=31. A warm container
+        from i1 exists at t=31, so the corrected model starts i2 warm; the
+        legacy decision-time binding forces a cold start."""
+        regions, carbon, fns, fn_map = self._setup()
+        invs = [self._inv(1, fns[0], 0.0), self._inv(2, fns[0], 1.0)]
+        sched = lambda: _FixedStartScheduler({"i2": 30.0}, use_warm=False)
+        new = Simulator(regions=regions, functions=fn_map, carbon=carbon,
+                        scheduler=sched()).run(list(invs))
+        old = Simulator(regions=regions, functions=fn_map, carbon=carbon, scheduler=sched(),
+                        warm_binding="decision").run(list(invs))
+        self.assertFalse([r for r in new.records if r.invocation.invocation_id == "i2"][0].cold_start)
+        self.assertTrue([r for r in old.records if r.invocation.invocation_id == "i2"][0].cold_start)
+
+    def test_idle_time_of_reused_container_is_charged(self):
+        """Two invocations 100 s apart: the container idles ~100 s, is reused,
+        then idles a full keep-alive and expires. Full accounting charges both
+        idle periods; the legacy accounting charges only the final one."""
+        regions, carbon, fns, fn_map = self._setup()
+        invs = [self._inv(1, fns[0], 0.0), self._inv(2, fns[0], 100.0)]
+        run = lambda **kw: Simulator(regions=regions, functions=fn_map, carbon=carbon,
+                                     scheduler=FifoScheduler(), **kw).run(list(invs)).summary()
+        full = run()["warm_idle_carbon_g"]
+        legacy = run(idle_accounting="expired_only")["warm_idle_carbon_g"]
+        self.assertGreater(legacy, 0.0)
+        ratio = full / legacy
+        # (~100 s reused idle + 600 s tail) / 600 s tail, allowing for the
+        # cold-start and execution time inside the first 100 s.
+        self.assertGreater(ratio, 1.14)
+        self.assertLess(ratio, 1.17)
+
+    def test_newest_first_reuse_lets_surplus_containers_expire(self):
+        """Three simultaneous invocations create three containers; afterwards
+        one invocation every 100 s needs only one. Newest-first reuse lets the
+        two surplus containers expire; oldest-first keeps all three alive."""
+        regions, carbon, fns, fn_map = self._setup()
+        invs = [self._inv(i, fns[0], 0.0) for i in range(3)]
+        invs += [self._inv(10 + k, fns[0], 100.0 * k) for k in range(1, 30)]
+        run = lambda **kw: Simulator(regions=regions, functions=fn_map, carbon=carbon,
+                                     scheduler=FifoScheduler(), **kw).run(list(invs)).summary()
+        newest = run()["warm_idle_carbon_g"]
+        oldest = run(reuse_order="oldest")["warm_idle_carbon_g"]
+        self.assertLess(newest, 0.6 * oldest)
+
+    def test_invalid_model_options_rejected(self):
+        regions, carbon, fns, fn_map = self._setup()
+        for kw in ({"warm_binding": "x"}, {"idle_accounting": "x"}, {"reuse_order": "x"}):
+            with self.assertRaises(ValueError):
+                Simulator(regions=regions, functions=fn_map, carbon=carbon,
+                          scheduler=FifoScheduler(), **kw)
+
+
 # ---------- Tests: GreenFaaS-v1 ablation ------------------------------------
 
 class CaribouSchedulerTests(unittest.TestCase):
@@ -316,10 +400,9 @@ class CaribouSchedulerTests(unittest.TestCase):
 
 class V1AblationTests(unittest.TestCase):
 
-    def test_v1_loses_to_fifo_in_low_variability(self):
-        """The v1 ablation should defer too eagerly in single-region (no shifting opportunity),
-        producing higher carbon than FIFO. This is the failure mode the
-        §4.3.9 idle-energy correction prevents."""
+    def test_greenfaas_matches_fifo_in_single_region_diurnal(self):
+        """GreenFaaS should match FIFO in a single region with a diurnal trace
+        (no spatial alternative)."""
         region_ids = ["DE"]
         regions = make_simple_regions(region_ids)
         # A diurnal trace with a small amplitude so v1 defers a little, but

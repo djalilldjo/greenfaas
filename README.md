@@ -66,7 +66,23 @@ python scripts/verify_tradeoff.py
 python scripts/scenario_sweep.py
 ```
 
-## Revision experiments (v1.1.0)
+## Simulator model (v1.2.0)
+
+From v1.2.0 the simulator resolves warm or cold at the moment an invocation
+starts, charges all warm-idle time, and reuses the most recently used warm
+container first. Earlier releases froze the warm/cold choice at decision
+time and charged idle energy only for containers that expired unused, which
+overstated the carbon cost of deferring schedulers and understated idle
+energy overall. See `CHANGELOG.md`. To reproduce pre-v1.2.0 numbers:
+
+```python
+Simulator(..., warm_binding="decision",
+               idle_accounting="expired_only", reuse_order="oldest")
+```
+
+Results from the earlier model are kept in `results/legacy_v1.1.0/`.
+
+## Revision experiments
 
 The experiments added for the IEEE TSC revision each write one CSV under
 `results/`:
@@ -77,6 +93,7 @@ The experiments added for the IEEE TSC revision each write one CSV under
 | `scripts/run_multibaseline.py --catalog long-deadline` | `multibaseline_long_deadline.csv` | The same comparison on a stress workload with 15-60 min deferrable deadlines |
 | `scripts/run_interactive_guard.py` | `interactive_guard.csv` | GreenFaaS vs GreenCourier at equal interactive-routing guards, with interactive latency |
 | `scripts/run_runtime_crossover.py` | `runtime_crossover.csv` | Job runtime swept from 2.5 s to 1 h in single-region deployments: where temporal shifting starts to pay |
+| `scripts/run_idle_sensitivity.py` | `idle_sensitivity.csv` | Sensitivity of the comparison to idle power and keep-alive time |
 
 All use seeds 42-44 and the real ENTSO-E / CAISO 2020 carbon traces, and
 honour `GREENFAAS_CARBON_DIR`.

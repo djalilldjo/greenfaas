@@ -28,9 +28,13 @@ from scipy import stats
 PROJ = Path(__file__).resolve().parents[1]
 
 
-def load_paired(csv_path, key_col, scheduler_col="scheduler", value_col="carbon_g"):
-    """Load a CSV into {scheduler: [(key, value), ...]} sorted by key."""
+def load_paired(csv_path, key_col, scheduler_col="scheduler", value_col="carbon_g",
+                setup_prefix=None):
+    """Load a CSV into {scheduler: [(key, value), ...]} sorted by key.
+    If setup_prefix is given, keep only rows whose `setup` starts with it."""
     rows = list(csv.DictReader(open(csv_path)))
+    if setup_prefix is not None:
+        rows = [r for r in rows if r["setup"].startswith(setup_prefix)]
     buckets = defaultdict(dict)
     for r in rows:
         buckets[r[scheduler_col]][r[key_col]] = float(r[value_col])
@@ -83,7 +87,8 @@ def main():
     print("=" * 70)
     print("Synthetic 5-region, multi-seed (5 seeds)")
     print("=" * 70)
-    syn = load_paired(PROJ / "results" / "multi_seed_synthetic.csv", key_col="seed")
+    syn = load_paired(PROJ / "results" / "multi_seed_raw.csv", key_col="seed",
+                      setup_prefix="Synthetic 5-region")
     results.append(paired_test(syn, "GreenFaaS", "Spatial",
                                "GreenFaaS vs Spatial [synthetic]"))
     results.append(paired_test(syn, "GreenFaaS", "GreenFaaS-v1",

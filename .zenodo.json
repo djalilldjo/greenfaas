@@ -1,6 +1,6 @@
 {
   "title": "GreenFaaS: Carbon-Aware Scheduling for Serverless Workloads",
-  "description": "Reference implementation and discrete-event simulator for GreenFaaS, a carbon-aware scheduler for serverless (FaaS) workloads. Version 1.1.0 adds a GreenCourier-style baseline, the multi-baseline comparison, the equal-guard interactive-routing comparison, the runtime-crossover experiment and a long-deadline stress test, with the result tables accompanying the IEEE Transactions on Services Computing revision (TSC-2026-06-0840).",
+  "description": "Reference implementation and discrete-event simulator for GreenFaaS, a carbon-aware scheduler for serverless (FaaS) workloads. Version 1.2.0 corrects the simulator's energy model (warm/cold resolved at start, all warm-idle time charged, newest-first container reuse) and regenerates all results; results from the earlier model are kept under results/legacy_v1.1.0. See CHANGELOG.md.",
   "upload_type": "software",
   "license": "Apache-2.0",
   "access_right": "open",
@@ -46,5 +46,5 @@
     "cloud computing",
     "discrete-event simulation"
   ],
-  "version": "v1.1.0"
+  "version": "v1.2.0"
 }
