@@ -31,8 +31,9 @@ from collections import defaultdict
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from greenfaas import GreenCourierScheduler
 from greenfaas import (
-    FifoScheduler, GreenFaaSScheduler, GreenFaaSV1Scheduler,
+    FifoScheduler, GreenFaaSScheduler, GreenFaaSSubmittedScheduler,
     LechowiczScheduler, Region, Simulator, SpatialScheduler,
     WaitAwhileScheduler, load_carbon_model_from_dir,
     default_carbon_dir,
@@ -109,7 +110,8 @@ def main():
         'Wait-Awhile':  lambda: WaitAwhileScheduler(threshold_g=200.0, max_defer_s=1800.0),
         'Lechowicz':    lambda: LechowiczScheduler(),
         'Spatial':      lambda: SpatialScheduler(max_rtt_ms=80.0),
-        'GreenFaaS-v1': lambda: GreenFaaSV1Scheduler(forecast_accuracy='perfect', deferrable_rtt_ms=80.0),
+        'GreenCourier': lambda: GreenCourierScheduler(20.0, 80.0),
+        'GreenFaaS-S': lambda: GreenFaaSSubmittedScheduler(forecast_accuracy='perfect', deferrable_rtt_ms=80.0),
         'GreenFaaS':    lambda: GreenFaaSScheduler(forecast_accuracy='perfect', deferrable_rtt_ms=80.0),
     }
 
@@ -173,7 +175,7 @@ def main():
     print(f"\n{'Scheduler':<14} {'Carbon (g) mean+-std':>22} {'vs FIFO mean+-std':>22}")
     print('-' * 60)
     summary = []
-    for name in ['FIFO','Wait-Awhile','Lechowicz','Spatial','GreenFaaS-v1','GreenFaaS']:
+    for name in ['FIFO','Wait-Awhile','Lechowicz','Spatial','GreenCourier','GreenFaaS-S','GreenFaaS']:
         carbons = [c for _, c, _ in buckets[name]]
         reductions = [(fifo_per_window[wd] - c) / fifo_per_window[wd] * 100
                       for wd, c, _ in buckets[name]]

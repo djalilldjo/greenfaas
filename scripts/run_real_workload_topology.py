@@ -22,11 +22,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from greenfaas import (
     FifoScheduler,
     GreenFaaSScheduler,
-    GreenFaaSV1Scheduler,
+    GreenFaaSSubmittedScheduler,
     LechowiczScheduler,
     Region,
     Simulator,
     SpatialScheduler,
+    GreenCourierScheduler,
     WaitAwhileScheduler,
     load_carbon_model_from_dir,
     default_carbon_dir,
@@ -78,7 +79,8 @@ def run_topology(name, region_ids, full_carbon, duration_s=24 * 3600.0):
         ("Wait-Awhile",  WaitAwhileScheduler(threshold_g=200.0, max_defer_s=1800.0)),
         ("Lechowicz",    LechowiczScheduler()),
         ("Spatial",      SpatialScheduler(max_rtt_ms=80.0)),
-        ("GreenFaaS-v1", GreenFaaSV1Scheduler(forecast_accuracy="perfect", deferrable_rtt_ms=80.0)),
+        ("GreenCourier", GreenCourierScheduler(20.0, 80.0)),
+        ("GreenFaaS-S", GreenFaaSSubmittedScheduler(forecast_accuracy="perfect", deferrable_rtt_ms=80.0)),
         ("GreenFaaS",    GreenFaaSScheduler(forecast_accuracy="perfect", deferrable_rtt_ms=80.0)),
     ]
 

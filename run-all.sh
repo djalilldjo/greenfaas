@@ -49,56 +49,60 @@ echo
 
 export GREENFAAS_CARBON_DIR="$CARBON_DIR"
 
-echo "[1/13] Verifying analytical lemma..."
+echo "[1/14] Verifying analytical lemma..."
 python scripts/verify_tradeoff.py | tail -1
 
 echo
-echo "[2/13] Headline experiment (synthetic 5-region)..."
+echo "[2/14] Headline experiment (synthetic 5-region)..."
 python scripts/run_experiment.py
 
 echo
-echo "[3/13] Real-carbon headline (§7.2.1)..."
+echo "[3/14] Real-carbon headline (§7.2.1)..."
 python scripts/run_real_carbon.py
 
 echo
-echo "[4/13] Real-carbon topology sweep (§7.3.1)..."
+echo "[4/14] Real-carbon topology sweep (§7.3.1)..."
 python scripts/run_real_topology.py
 
 echo
-echo "[5/13] Fair-Wait-Awhile parameterization (§7.2.2)..."
+echo "[5/14] Fair-Wait-Awhile parameterization (§7.2.2)..."
 python scripts/run_fair_waitawhile.py
 
 echo
-echo "[6/13] Lechowicz baseline (§7.2.3)..."
+echo "[6/14] Lechowicz baseline (§7.2.3)..."
 python scripts/run_lechowicz.py
 
 echo
-echo "[7/13] Fine-grained do-no-harm (§7.4.1)..."
+echo "[7/14] Fine-grained do-no-harm (§7.4.1)..."
 python scripts/run_fine_donoharm.py
 
 echo
-echo "[8/13] Multi-seed variance (5 seeds, all setups)..."
+echo "[8/14] Multi-seed variance (5 seeds, all setups)..."
 python scripts/run_multi_seed.py
 
 echo
-echo "[9/13] Multi-baseline comparison, canonical workload (incl. GreenCourier)..."
+echo "[9/14] Multi-baseline comparison, canonical workload (incl. GreenCourier)..."
 python scripts/run_multibaseline.py
 
 echo
-echo "[10/13] Multi-baseline comparison, long-deadline stress workload..."
+echo "[10/14] Multi-baseline comparison, long-deadline stress workload..."
 python scripts/run_multibaseline.py --catalog long-deadline
 
 echo
-echo "[11/13] Interactive routing at equal guards..."
+echo "[11/14] Interactive routing at equal guards..."
 python scripts/run_interactive_guard.py
 
 echo
-echo "[12/13] Runtime crossover..."
+echo "[12/14] Runtime crossover..."
 python scripts/run_runtime_crossover.py
 
 echo
-echo "[13/13] Idle-power and keep-alive sensitivity..."
+echo "[13/14] Idle-power and keep-alive sensitivity..."
 python scripts/run_idle_sensitivity.py
+
+echo
+echo "[14/14] Mechanism ablation and parameter sensitivity..."
+python scripts/run_ablation.py
 
 if [ -n "$AZURE_2021" ]; then
   echo

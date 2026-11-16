@@ -22,7 +22,7 @@ from statistics import mean, stdev
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from greenfaas import (
-    CaribouScheduler, FifoScheduler, GreenFaaSScheduler, GreenFaaSV1Scheduler,
+    CaribouScheduler, FifoScheduler, GreenFaaSScheduler, GreenFaaSSubmittedScheduler,
     LechowiczScheduler, Region, Simulator, SpatialScheduler,
     WaitAwhileScheduler, load_carbon_model_from_dir, default_carbon_dir,
 )
@@ -57,7 +57,7 @@ def schedulers(max_rtt_ms):
         ("Caribou(3h)",  CaribouScheduler(redeploy_interval_s=3*3600.0, max_rtt_ms=max_rtt_ms)),
         ("Caribou(6h)",  CaribouScheduler(redeploy_interval_s=6*3600.0, max_rtt_ms=max_rtt_ms)),
         ("Caribou(24h)", CaribouScheduler(redeploy_interval_s=24*3600.0, max_rtt_ms=max_rtt_ms)),
-        ("GreenFaaS-v1", GreenFaaSV1Scheduler(forecast_accuracy="perfect", deferrable_rtt_ms=max_rtt_ms)),
+        ("GreenFaaS-S", GreenFaaSSubmittedScheduler(forecast_accuracy="perfect", deferrable_rtt_ms=max_rtt_ms)),
         ("GreenFaaS",    GreenFaaSScheduler(forecast_accuracy="perfect", deferrable_rtt_ms=max_rtt_ms)),
     ]
 

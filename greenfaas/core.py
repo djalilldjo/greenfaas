@@ -117,6 +117,14 @@ class ScheduleDecision:
     region_id: str
     start_time: float
     use_warm: bool
+    # v1.3.0: if no warm container is free when the invocation is due to
+    # start, but one is busy with the same function in that region, wait up
+    # to this many seconds for it to finish instead of cold-starting a new
+    # container (request queueing at the function's pool). 0 = never wait.
+    reuse_wait_s: float = 0.0
+    # v1.3.0: how long the container stays warm after this invocation
+    # completes. None = the platform default (Simulator.warm_ttl_s).
+    keep_warm_s: Optional[float] = None
 
 
 @dataclass

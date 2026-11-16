@@ -13,7 +13,7 @@ from _revision_common import ROOT, DURATION, regions_for, carbon_for, canonical_
 from greenfaas import (FifoScheduler, WaitAwhileScheduler, LechowiczScheduler,
                        Simulator, generate_workload)
 
-LEGACY = dict(warm_binding="decision", idle_accounting="expired_only", reuse_order="oldest")
+LEGACY = dict(warm_binding="decision", idle_accounting="expired_only", reuse_order="oldest", idle_intensity="mean")
 
 
 def main():

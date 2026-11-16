@@ -11,7 +11,7 @@ This sweep tests at fine fractions {0.00, 0.01, 0.02, 0.05, 0.10, 0.25}
 to show:
   (a) GreenFaaS produces minimal carbon overhead at very low shiftable
       fractions (graceful degradation, not a step function);
-  (b) GreenFaaS-v1 (the un-corrected ablation) starts losing carbon
+  (b) GreenFaaS-S (the un-corrected ablation) starts losing carbon
       to FIFO at lower shiftable fractions than the corrected version;
   (c) The corrected GreenFaaS = FIFO bit-exactly at fraction 0 but
       diverges smoothly upward as the opportunity grows.
@@ -33,7 +33,7 @@ from greenfaas import default_carbon_dir
 from greenfaas import (
     FifoScheduler,
     GreenFaaSScheduler,
-    GreenFaaSV1Scheduler,
+    GreenFaaSSubmittedScheduler,
     Region,
     Simulator,
     SpatialScheduler,
@@ -123,7 +123,7 @@ def main():
 
         fifo = run(FifoScheduler())
         gf = run(GreenFaaSScheduler(forecast_accuracy="perfect", deferrable_rtt_ms=80.0))
-        v1 = run(GreenFaaSV1Scheduler(forecast_accuracy="perfect", deferrable_rtt_ms=80.0))
+        v1 = run(GreenFaaSSubmittedScheduler(forecast_accuracy="perfect", deferrable_rtt_ms=80.0))
         sp = run(SpatialScheduler(max_rtt_ms=80.0))
 
         # Carbon "gap" = carbon-aware vs FIFO. Negative if it does worse than FIFO.
@@ -139,13 +139,13 @@ def main():
             "shiftable_fraction": frac,
             "fifo_carbon_g": fifo["carbon_g"],
             "greenfaas_carbon_g": gf["carbon_g"],
-            "greenfaas_v1_carbon_g": v1["carbon_g"],
+            "greenfaas_sub_carbon_g": v1["carbon_g"],
             "spatial_carbon_g": sp["carbon_g"],
             "greenfaas_gap_pct": gf_gap,
-            "greenfaas_v1_gap_pct": v1_gap,
+            "greenfaas_sub_gap_pct": v1_gap,
             "spatial_gap_pct": sp_gap,
             "greenfaas_cold_rate": gf["cold_start_rate"],
-            "greenfaas_v1_cold_rate": v1["cold_start_rate"],
+            "greenfaas_sub_cold_rate": v1["cold_start_rate"],
         })
 
     out = PROJ / "results" / "fine_grained_donoharm.csv"

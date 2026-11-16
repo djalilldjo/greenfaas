@@ -2,7 +2,7 @@
 """Multi-baseline comparison (TSC revision).
 
 Eight schedulers -- FIFO, Wait-Awhile, Lechowicz, Spatial, Caribou,
-GreenCourier, GreenFaaS-v1 (ablation), GreenFaaS -- on real carbon traces in
+GreenCourier, GreenFaaS-S (ablation), GreenFaaS -- on real carbon traces in
 four regimes: multi-region (FR/DE/GB/US-CAISO/PL) and single-region DE, GB,
 CAISO. Three seeds (42-44), 24 h, 2 invocations/s.
 
@@ -20,7 +20,7 @@ from _revision_common import (ROOT, SEEDS, DURATION, MULTI, regions_for,
                               carbon_for, canonical_catalog, long_deadline_catalog)
 from greenfaas import (
     FifoScheduler, WaitAwhileScheduler, LechowiczScheduler, SpatialScheduler,
-    CaribouScheduler, GreenCourierScheduler, GreenFaaSV1Scheduler,
+    CaribouScheduler, GreenCourierScheduler, GreenFaaSSubmittedScheduler,
     GreenFaaSScheduler, Simulator, generate_workload,
 )
 
@@ -40,7 +40,7 @@ def all_scheds():
         SpatialScheduler(max_rtt_ms=80.0),
         CaribouScheduler(redeploy_interval_s=3600.0, max_rtt_ms=80.0),
         GreenCourierScheduler(interactive_rtt_ms=20.0, deferrable_rtt_ms=80.0),
-        GreenFaaSV1Scheduler(forecast_accuracy="perfect", deferrable_rtt_ms=80.0),
+        GreenFaaSSubmittedScheduler(forecast_accuracy="perfect", deferrable_rtt_ms=80.0),
         GreenFaaSScheduler(forecast_accuracy="perfect", deferrable_rtt_ms=80.0),
     ]
 

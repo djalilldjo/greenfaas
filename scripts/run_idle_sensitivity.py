@@ -14,7 +14,7 @@ from dataclasses import replace
 
 from _revision_common import ROOT, DURATION, MULTI, regions_for, carbon_for, canonical_catalog
 from greenfaas import (FifoScheduler, WaitAwhileScheduler, LechowiczScheduler,
-                       SpatialScheduler, GreenCourierScheduler, GreenFaaSV1Scheduler,
+                       SpatialScheduler, GreenCourierScheduler, GreenFaaSSubmittedScheduler,
                        GreenFaaSScheduler, Simulator, generate_workload)
 
 CONFIGS = [(0.25, 600.0), (0.5, 600.0), (1.0, 600.0), (2.0, 600.0),
@@ -29,7 +29,7 @@ def scheds():
         LechowiczScheduler(),
         SpatialScheduler(max_rtt_ms=80.0),
         GreenCourierScheduler(interactive_rtt_ms=20.0, deferrable_rtt_ms=80.0),
-        GreenFaaSV1Scheduler(forecast_accuracy="perfect", deferrable_rtt_ms=80.0),
+        GreenFaaSSubmittedScheduler(forecast_accuracy="perfect", deferrable_rtt_ms=80.0),
         GreenFaaSScheduler(forecast_accuracy="perfect", deferrable_rtt_ms=80.0),
     ]
 

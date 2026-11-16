@@ -33,7 +33,7 @@ from greenfaas import default_carbon_dir
 from greenfaas import (
     FifoScheduler,
     GreenFaaSScheduler,
-    GreenFaaSV1Scheduler,
+    GreenFaaSSubmittedScheduler,
     LechowiczScheduler,
     Region,
     Simulator,

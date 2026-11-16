@@ -17,6 +17,7 @@ need to be globally optimal; the evaluation compares them empirically.
 from __future__ import annotations
 
 import math
+import zlib
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
@@ -44,6 +45,16 @@ class SystemState:
     warm_pool: Dict[str, Dict[str, int]] = field(default_factory=dict)
     # in_flight[region_id] = number of invocations currently executing
     in_flight: Dict[str, int] = field(default_factory=dict)
+    # busy[(region_id, function_id)] = containers currently executing f in r
+    busy: Dict[tuple, int] = field(default_factory=dict)
+    # queued[(region_id, function_id)] = invocations waiting for a container
+    queued: Dict[tuple, int] = field(default_factory=dict)
+
+    def busy_count(self, region_id: str, function_id: str) -> int:
+        return self.busy.get((region_id, function_id), 0)
+
+    def queued_count(self, region_id: str, function_id: str) -> int:
+        return self.queued.get((region_id, function_id), 0)
 
     def warm_count(self, region_id: str, function_id: str) -> int:
         return self.warm_pool.get(region_id, {}).get(function_id, 0)
@@ -438,8 +449,13 @@ class ArrivalRateTracker:
 #      synchronisation pile-up that destroyed Wait-Awhile.
 # ---------------------------------------------------------------------------
 
-class GreenFaaSScheduler(Scheduler):
-    name = "GreenFaaS"
+class GreenFaaSSubmittedScheduler(Scheduler):
+    """GreenFaaS as in the originally submitted manuscript (lemma routing
+    gate, idle-charged deferral, interactive tier pinned home, no warm-pool
+    control). Kept unchanged for comparison; superseded by
+    `GreenFaaSScheduler` below."""
+
+    name = "GreenFaaS-S"
 
     def __init__(
         self,
@@ -669,6 +685,216 @@ class GreenFaaSScheduler(Scheduler):
                 state.warm_count(home.region_id, fn.function_id) > 0,
             )
         return best
+
+
+# ---------------------------------------------------------------------------
+# Warm-pool controls (v1.3.0), shared by GreenFaaS and by the "+WP" ablation
+# wrapper so that baselines can be given exactly the same controls.
+#
+#   queue-for-reuse : if the chosen pool has no free warm container but has a
+#       busy one, wait up to kappa * (warm-path SLA slack) for it instead of
+#       cold-starting another container. Waiting costs no energy; a new
+#       container costs a cold start plus a keep-alive period of idle power.
+#
+#   break-even keep-alive : after an invocation, keep the container warm for
+#       T* = P_a * tau_c / P_i seconds -- the idle time whose energy equals
+#       one cold start -- capped at the platform TTL. This is the ski-rental
+#       rule (idle + cold-start energy within 2x of the offline optimum for
+#       every idle period) and coincides with Lemma 1's break-even at r = 1:
+#       lambda* = 1 / T*. It is applied only where a cold start fits in the
+#       same slack share; otherwise the platform TTL is kept.
+# ---------------------------------------------------------------------------
+
+def warm_path_slack_s(fn: FunctionSpec, home: Region, region: Region,
+                      defer_s: float = 0.0) -> float:
+    """SLA slack if the invocation runs warm in `region` after `defer_s`."""
+    return (fn.sla_deadline_s - fn.avg_runtime_s
+            - home.rtt_to(region) / 1000.0 - defer_s)
+
+
+def break_even_keep_alive_s(fn: FunctionSpec) -> float:
+    """Idle time whose energy equals one cold start: P_a tau_c / P_i."""
+    if fn.idle_power_w <= 0.0:
+        return float("inf")
+    return fn.active_power_w * fn.cold_start_s / fn.idle_power_w
+
+
+def apply_warm_pool_controls(decision: ScheduleDecision, fn: FunctionSpec,
+                             home: Region, region: Region, now: float,
+                             kappa: float = 0.5, queue: bool = True,
+                             keep_alive: str = "breakeven",
+                             platform_ttl_s: float = 600.0,
+                             theta: float = 3.0) -> ScheduleDecision:
+    slack = warm_path_slack_s(fn, home, region, decision.start_time - now)
+    budget = max(0.0, kappa * slack)
+    if queue:
+        # Never wait longer than theta cold starts: beyond that the latency
+        # paid exceeds the cold start the wait is meant to avoid.
+        decision.reuse_wait_s = min(budget, theta * fn.cold_start_s)
+    # Interactive containers keep the platform TTL: a cold start would
+    # consume their slack.
+    if (keep_alive == "breakeven" and fn.cold_start_s <= budget
+            and fn.latency_class != LatencyClass.INTERACTIVE):
+        decision.keep_warm_s = min(platform_ttl_s, break_even_keep_alive_s(fn))
+    return decision
+
+
+class WithWarmPoolControl(Scheduler):
+    """Ablation wrapper: any scheduler's placement plus GreenFaaS's warm-pool
+    controls (queue-for-reuse and break-even keep-alive)."""
+
+    def __init__(self, base: Scheduler, kappa: float = 0.5, queue: bool = True,
+                 keep_alive: str = "breakeven", theta: float = 3.0):
+        self.base = base
+        self.theta = theta
+        self.kappa = kappa
+        self.queue = queue
+        self.keep_alive = keep_alive
+        self.name = base.name + "+WP"
+
+    def schedule(self, invocation, state, carbon):
+        d = self.base.schedule(invocation, state, carbon)
+        fn = state.functions[invocation.function_id]
+        home = state.regions[invocation.home_region]
+        return apply_warm_pool_controls(
+            d, fn, home, state.regions[d.region_id], state.current_time,
+            self.kappa, self.queue, self.keep_alive, theta=self.theta)
+
+
+# ---------------------------------------------------------------------------
+# GreenFaaS (v1.3.0). The scheduler proposed in the revised paper.
+#
+# One SLA-slack budget per invocation drives three decisions:
+#   1. WHERE: the lowest-carbon region within the tier's RTT budget. For the
+#      interactive tier the budget is a fraction rho of the warm-path slack
+#      (D - tau_e) instead of "home only"; deferrable and background tiers
+#      keep their fixed budgets.
+#   2. WHEN: (a) queue for a busy container rather than cold-start a new one,
+#      up to kappa * slack; (b) carbon-driven deferral, taken only when the
+#      execution-carbon saving exceeds the conservative idle charge of the
+#      paper's temporal corollary (it never fires at FaaS runtimes and opens
+#      for hour-scale jobs).
+#   3. HOW LONG WARM: the break-even keep-alive T* = P_a tau_c / P_i for
+#      tiers whose slack absorbs a cold start; the platform TTL otherwise.
+#
+# Unlike the submitted version, Lemma 1 is not used as a routing gate: with
+# a platform keep-alive the "no warm container" strategy is not available to
+# a router. It is realised instead by the keep-alive decision (3).
+# ---------------------------------------------------------------------------
+
+class GreenFaaSScheduler(Scheduler):
+    name = "GreenFaaS"
+
+    def __init__(
+        self,
+        forecast_accuracy: str = "perfect",
+        deferrable_rtt_ms: float = 80.0,
+        background_rtt_ms: float = float("inf"),
+        max_util: float = 0.9,
+        interactive_slack_frac: float = 0.05,
+        interactive_rtt_ms: Optional[float] = None,
+        queue_slack_frac: float = 0.5,
+        queue: bool = True,
+        queue_cold_mult: float = 3.0,
+        keep_alive: str = "breakeven",
+        temporal: bool = True,
+        jitter_fraction: float = 0.25,
+        platform_ttl_s: float = 600.0,
+    ):
+        if keep_alive not in ("breakeven", "platform"):
+            raise ValueError("keep_alive must be 'breakeven' or 'platform'")
+        self.forecast_accuracy = forecast_accuracy
+        self.deferrable_rtt_ms = deferrable_rtt_ms
+        self.background_rtt_ms = background_rtt_ms
+        self.max_util = max_util
+        self.interactive_slack_frac = interactive_slack_frac
+        self.interactive_rtt_ms = interactive_rtt_ms
+        self.queue_slack_frac = queue_slack_frac
+        self.queue = queue
+        self.queue_cold_mult = queue_cold_mult
+        self.keep_alive = keep_alive
+        self.temporal = temporal
+        self.jitter_fraction = jitter_fraction
+        self.platform_ttl_s = platform_ttl_s
+
+    def rtt_budget_ms(self, fn: FunctionSpec) -> float:
+        if fn.latency_class == LatencyClass.INTERACTIVE:
+            if self.interactive_rtt_ms is not None:
+                return self.interactive_rtt_ms
+            return 1000.0 * self.interactive_slack_frac * max(
+                0.0, fn.sla_deadline_s - fn.avg_runtime_s)
+        if fn.latency_class == LatencyClass.DEFERRABLE:
+            return self.deferrable_rtt_ms
+        return self.background_rtt_ms
+
+    def schedule(self, invocation, state, carbon):
+        fn = state.functions[invocation.function_id]
+        now = state.current_time
+        home = state.regions[invocation.home_region]
+        lc = fn.latency_class
+
+        budget_ms = self.rtt_budget_ms(fn)
+        candidates = [
+            r for r in state.regions.values()
+            if r.region_id == home.region_id
+            or (home.rtt_to(r) <= budget_ms
+                and state.utilisation(r.region_id) < self.max_util)
+        ]
+
+        if lc == LatencyClass.INTERACTIVE or not self.temporal:
+            max_defer = 0.0
+        elif lc == LatencyClass.DEFERRABLE:
+            max_defer = max(0.0, min(60.0, fn.sla_deadline_s - fn.avg_runtime_s))
+        else:
+            max_defer = max(0.0, fn.sla_deadline_s - fn.avg_runtime_s)
+
+        jitter_seed = (zlib.adler32(fn.function_id.encode())
+                       ^ zlib.adler32(invocation.invocation_id.encode())) & 0xFFFF
+        jitter01 = jitter_seed / 0xFFFF
+
+        exec_j = fn.active_power_w * fn.avg_runtime_s
+        best = None
+        best_key = None
+        for r in candidates:
+            trace = carbon.traces[r.region_id]
+            step = trace.step_s
+            n_steps = max(1, int(max_defer / step) + 1)
+            if n_steps > 1:
+                forecast = carbon.forecast(r.region_id, now, max_defer + step,
+                                           self.forecast_accuracy)
+                mean_ci = sum(trace.values) / len(trace.values)
+            else:
+                forecast = [trace.intensity(now)]
+                mean_ci = 0.0
+            rtt_s = home.rtt_to(r) / 1000.0
+            for i in range(n_steps):
+                dt = (i * step + jitter01 * step * self.jitter_fraction) if i > 0 else 0.0
+                ci = forecast[min(i, len(forecast) - 1)]
+                # A deferred start must meet the deadline even if it has to
+                # cold-start.
+                if i > 0 and dt + rtt_s + fn.cold_start_s \
+                        + fn.avg_runtime_s > fn.sla_deadline_s:
+                    continue
+                # Cold-start energy is not scored: charging it per invocation
+                # would pin a function to wherever its pool already is.
+                score = exec_j * ci
+                if dt > 0:
+                    # Conservative idle charge for a deferral (paper Sec. 5.4).
+                    score += fn.idle_power_w * dt * mean_ci
+                score *= r.pue
+                key = (score, rtt_s, dt)
+                if best_key is None or key < best_key:
+                    best_key = key
+                    best = (r, now + dt)
+
+        region, start = best
+        decision = ScheduleDecision(
+            region.region_id, start,
+            state.warm_count(region.region_id, fn.function_id) > 0,
+        )
+        return apply_warm_pool_controls(
+            decision, fn, home, region, now, self.queue_slack_frac, self.queue,
+            self.keep_alive, self.platform_ttl_s, self.queue_cold_mult)
 
 
 # ---------------------------------------------------------------------------

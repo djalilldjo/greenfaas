@@ -15,8 +15,7 @@ Design choices:
   * Idle energy (v1.2.0): every second a container spends warm-but-idle is
     charged at the function's idle power, whether the container is later
     reused or expires. This is the W_{r,f}(t) integral of the paper's
-    total-carbon equation. Carbon for an idle period is attributed to the
-    region where the container sat, at that region's mean intensity.
+    total-carbon equation.
   * Reuse order (v1.2.0): an invocation takes the MOST recently used warm
     container, so containers beyond what current concurrency needs sit unused
     and expire after the TTL. (Taking the oldest container first, as before,
@@ -25,6 +24,16 @@ Design choices:
   * Warm/cold binding (v1.2.0): whether an invocation starts warm is resolved
     when it actually STARTS: it uses a warm container if one is available.
     A scheduler cannot commit a future start to a cold start.
+
+  * Queue-for-reuse and keep-alive (v1.3.0): a decision may carry a queue
+    wait (`reuse_wait_s`) and a keep-alive (`keep_warm_s`). A request with a
+    queue wait that finds no free warm container but a busy one of the same
+    function waits and is handed the first to complete (FIFO), or cold-starts
+    when the wait expires. A completing container stays warm for the
+    decision's keep-alive (default: `warm_ttl_s`).
+  * Idle carbon (v1.3.0): the intensity trace is integrated over each idle
+    interval (`idle_intensity="trace"`); `"mean"` restores the v1.2.0
+    attribution at the region's mean intensity.
 
 Legacy behaviour (releases up to v1.1.0) is kept for reproducing the results
 of the originally submitted manuscript: `idle_accounting="expired_only"`
@@ -61,6 +70,7 @@ EVENT_ARRIVAL = 0
 EVENT_START = 1
 EVENT_COMPLETION = 2
 EVENT_WARM_EXPIRE = 3
+EVENT_WAIT_TIMEOUT = 4
 
 
 @dataclass(order=True)
@@ -139,7 +149,11 @@ class Simulator:
         warm_binding: str = "start",
         idle_accounting: str = "full",
         reuse_order: str = "newest",
+        idle_intensity: str = "trace",
     ):
+        if idle_intensity not in ("trace", "mean"):
+            raise ValueError("idle_intensity must be 'trace' or 'mean'")
+        self.idle_intensity = idle_intensity
         if reuse_order not in ("newest", "oldest"):
             raise ValueError("reuse_order must be 'newest' or 'oldest'")
         self.reuse_order = reuse_order
@@ -164,24 +178,31 @@ class Simulator:
         )
 
         # Pending warm expirations per (region, function): list of expiry times.
-        self._warm_expires: Dict[Tuple[str, str], List[float]] = {}
+        self._warm: Dict[Tuple[str, str], List[dict]] = {}
+        # Invocations queued for a busy container, per (region, function).
+        self._waiters: Dict[Tuple[str, str], List[dict]] = {}
 
     # ------------------------------------------------------------------ #
     # Warm-pool accounting
     # ------------------------------------------------------------------ #
-    def _add_warm(self, region: str, function: str, until: float):
+    def _add_warm(self, region: str, function: str, start: float, until: float) -> dict:
+        """Add a warm-idle container; returns its record."""
+        c = {"start": start, "expiry": until, "alive": True}
         self.state.warm_pool[region][function] = self.state.warm_pool[region].get(function, 0) + 1
-        self._warm_expires.setdefault((region, function), []).append(until)
+        self._warm.setdefault((region, function), []).append(c)
+        return c
 
     def _consume_warm(self, region: str, function: str) -> float:
         """Take one warm container; return how long it had been idle (s)."""
         idle_s = 0.0
         if self.state.warm_pool[region].get(function, 0) > 0:
             self.state.warm_pool[region][function] -= 1
-            expiries = self._warm_expires.get((region, function), [])
-            if expiries:
-                expiry = expiries.pop() if self.reuse_order == "newest" else expiries.pop(0)
-                idle_s = max(0.0, self.state.current_time - (expiry - self.warm_ttl_s))
+            pool = self._warm.get((region, function), [])
+            if pool:
+                # The pool is ordered by the time each container went idle.
+                c = pool.pop() if self.reuse_order == "newest" else pool.pop(0)
+                c["alive"] = False
+                idle_s = max(0.0, self.state.current_time - c["start"])
         return idle_s
 
     # ------------------------------------------------------------------ #
@@ -192,6 +213,8 @@ class Simulator:
         # Idle-energy segments per (region, function): we accumulate at the
         # end based on warm container lifetimes.
         warm_lifetimes_s: Dict[Tuple[str, str], float] = {}
+        # Integral of carbon intensity over those idle intervals (g/kWh * s).
+        idle_ci_s: Dict[Tuple[str, str], float] = {}
 
         events: List[_Event] = []
         for inv in invocations:
@@ -236,15 +259,36 @@ class Simulator:
                 # Resolve cold/warm at the ACTUAL start time (see module
                 # docstring for the legacy decision-time binding).
                 warm_available = self.state.warm_pool[region.region_id].get(fn.function_id, 0) > 0
-                if self.warm_binding == "start":
+                key = (region.region_id, fn.function_id)
+                if (not warm_available and not ev.payload.get("handoff")
+                        and not ev.payload.get("timed_out")
+                        and decision.reuse_wait_s > 0.0
+                        and self.state.busy.get(key, 0) > 0):
+                    # Queue for a busy container of this function rather
+                    # than cold-starting a new one.
+                    w = {"inv": inv, "decision": decision, "active": True}
+                    self._waiters.setdefault(key, []).append(w)
+                    self.state.queued[key] = self.state.queued.get(key, 0) + 1
+                    heapq.heappush(events, _Event(
+                        self.state.current_time + decision.reuse_wait_s,
+                        EVENT_WAIT_TIMEOUT, {"waiter": w, "key": key},
+                    ))
+                    continue
+                if ev.payload.get("handoff"):
+                    # Handed a container straight from a completing
+                    # invocation: warm, with no idle time in between.
+                    cold = False
+                elif self.warm_binding == "start":
                     cold = not warm_available
                 else:  # legacy: choice frozen at decision time
                     cold = not (decision.use_warm and warm_available)
-                if not cold:
+                if not cold and not ev.payload.get("handoff"):
                     idle_s = self._consume_warm(region.region_id, fn.function_id)
                     if self.idle_accounting == "full":
-                        key = (region.region_id, fn.function_id)
                         warm_lifetimes_s[key] = warm_lifetimes_s.get(key, 0.0) + idle_s
+                        now_ = self.state.current_time
+                        idle_ci_s[key] = idle_ci_s.get(key, 0.0) + self.carbon.traces[
+                            region.region_id].integral(now_ - idle_s, now_)
 
                 # Compute energy & carbon for the execution + cold start.
                 runtime = inv.realized_runtime_s
@@ -274,37 +318,73 @@ class Simulator:
                 ))
 
                 self.state.in_flight[region.region_id] = self.state.in_flight.get(region.region_id, 0) + 1
+                self.state.busy[key] = self.state.busy.get(key, 0) + 1
                 heapq.heappush(events, _Event(
                     completion_time, EVENT_COMPLETION,
-                    {"region": region.region_id, "function": fn.function_id},
+                    {"region": region.region_id, "function": fn.function_id,
+                     "keep_warm_s": decision.keep_warm_s},
                 ))
 
             elif ev.kind == EVENT_COMPLETION:
                 region_id = ev.payload["region"]
                 function_id = ev.payload["function"]
                 self.state.in_flight[region_id] = max(0, self.state.in_flight.get(region_id, 0) - 1)
-                # Container becomes warm-and-idle for warm_ttl_s.
-                expire = self.state.current_time + self.warm_ttl_s
-                self._add_warm(region_id, function_id, expire)
+                key = (region_id, function_id)
+                self.state.busy[key] = max(0, self.state.busy.get(key, 0) - 1)
+                waiters = self._waiters.get(key)
+                if waiters:
+                    # Hand the container to the longest-waiting invocation.
+                    w = waiters.pop(0)
+                    w["active"] = False
+                    self.state.queued[key] -= 1
+                    heapq.heappush(events, _Event(
+                        self.state.current_time, EVENT_START,
+                        {"inv": w["inv"], "decision": w["decision"], "handoff": True},
+                    ))
+                    continue
+                # Container becomes warm-and-idle for its keep-alive time
+                # (the platform TTL unless the scheduler set one).
+                keep = ev.payload.get("keep_warm_s")
+                ttl = self.warm_ttl_s if keep is None else max(0.0, keep)
+                if ttl <= 0.0:
+                    continue                      # released immediately
+                now_ = self.state.current_time
+                c = self._add_warm(region_id, function_id, now_, now_ + ttl)
                 heapq.heappush(events, _Event(
-                    expire, EVENT_WARM_EXPIRE,
-                    {"region": region_id, "function": function_id, "start": self.state.current_time},
+                    now_ + ttl, EVENT_WARM_EXPIRE,
+                    {"region": region_id, "function": function_id, "container": c},
                 ))
+
+            elif ev.kind == EVENT_WAIT_TIMEOUT:
+                w = ev.payload["waiter"]
+                if w["active"]:
+                    key = ev.payload["key"]
+                    w["active"] = False
+                    self._waiters[key].remove(w)
+                    self.state.queued[key] -= 1
+                    heapq.heappush(events, _Event(
+                        self.state.current_time, EVENT_START,
+                        {"inv": w["inv"], "decision": w["decision"], "timed_out": True},
+                    ))
 
             elif ev.kind == EVENT_WARM_EXPIRE:
                 region_id = ev.payload["region"]
                 function_id = ev.payload["function"]
-                start = ev.payload["start"]
-                # If this warm container was still present (not reused), evict it.
-                expiries = self._warm_expires.get((region_id, function_id), [])
-                if expiries and abs(expiries[0] - ev.time) < 1e-9:
-                    expiries.pop(0)
+                c = ev.payload["container"]
+                # If this warm container is still present (not reused), evict it.
+                if c["alive"]:
+                    c["alive"] = False
+                    self._warm[(region_id, function_id)].remove(c)
                     self.state.warm_pool[region_id][function_id] = max(
                         0, self.state.warm_pool[region_id][function_id] - 1
                     )
-                    duration = ev.time - start
+                    duration = ev.time - c["start"]
                     warm_lifetimes_s[(region_id, function_id)] = (
                         warm_lifetimes_s.get((region_id, function_id), 0.0) + duration
+                    )
+                    idle_ci_s[(region_id, function_id)] = (
+                        idle_ci_s.get((region_id, function_id), 0.0)
+                        + self.carbon.traces[region_id].integral(c["start"], ev.time)
                     )
 
         # Warm pool idle energy and carbon.
@@ -315,10 +395,15 @@ class Simulator:
             region = self.regions[region_id]
             kwh = fn.idle_power_w * total_s / 3600.0 / 1000.0 * region.pue
             warm_idle_kwh += kwh
-            # Attribute carbon at the average intensity over the simulated span.
-            trace = self.carbon.traces[region_id]
-            mean_ci = sum(trace.values) / len(trace.values)
-            warm_idle_carbon += kwh * mean_ci
+            if self.idle_intensity == "trace":
+                # Exact: intensity integrated over each idle interval.
+                warm_idle_carbon += (fn.idle_power_w / 3600.0 / 1000.0 * region.pue
+                                     * idle_ci_s.get((region_id, function_id), 0.0))
+            else:
+                # v1.2.0: region mean intensity over the simulated span.
+                trace = self.carbon.traces[region_id]
+                mean_ci = sum(trace.values) / len(trace.values)
+                warm_idle_carbon += kwh * mean_ci
 
         return SimulationResult(
             scheduler_name=self.scheduler.name,

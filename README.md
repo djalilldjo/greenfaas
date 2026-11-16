@@ -66,21 +66,27 @@ python scripts/verify_tradeoff.py
 python scripts/scenario_sweep.py
 ```
 
-## Simulator model (v1.2.0)
+## Scheduler and simulator model (v1.3.0)
 
-From v1.2.0 the simulator resolves warm or cold at the moment an invocation
-starts, charges all warm-idle time, and reuses the most recently used warm
-container first. Earlier releases froze the warm/cold choice at decision
-time and charged idle energy only for containers that expired unused, which
-overstated the carbon cost of deferring schedulers and understated idle
-energy overall. See `CHANGELOG.md`. To reproduce pre-v1.2.0 numbers:
+`GreenFaaSScheduler` sets, for every invocation, the region, an optional
+queue wait and the container keep-alive (see `CHANGELOG.md`). The scheduler
+evaluated in the originally submitted manuscript is kept as
+`GreenFaaSSubmittedScheduler`.
+
+The simulator resolves warm or cold at the moment an invocation starts,
+charges all warm-idle time at the time-resolved carbon intensity, reuses the
+most recently used warm container first, and honours the queue wait and
+keep-alive in a scheduler's decision. To reproduce earlier releases:
 
 ```python
-Simulator(..., warm_binding="decision",
-               idle_accounting="expired_only", reuse_order="oldest")
+# v1.2.0 idle attribution (region mean intensity)
+Simulator(..., idle_intensity="mean")
+# pre-v1.2.0 model
+Simulator(..., warm_binding="decision", idle_accounting="expired_only",
+               reuse_order="oldest", idle_intensity="mean")
 ```
 
-Results from the earlier model are kept in `results/legacy_v1.1.0/`.
+Earlier results are kept in `results/v1.2.0/` and `results/legacy_v1.1.0/`.
 
 ## Revision experiments
 
@@ -92,6 +98,7 @@ The experiments added for the IEEE TSC revision each write one CSV under
 | `scripts/run_multibaseline.py` | `multibaseline_canonical.csv` | Eight schedulers (incl. the GreenCourier-style baseline) on the canonical workload: multi-region and single-region DE/GB/CAISO |
 | `scripts/run_multibaseline.py --catalog long-deadline` | `multibaseline_long_deadline.csv` | The same comparison on a stress workload with 15-60 min deferrable deadlines |
 | `scripts/run_interactive_guard.py` | `interactive_guard.csv` | GreenFaaS vs GreenCourier at equal interactive-routing guards, with interactive latency |
+| `scripts/run_ablation.py` | `ablation.csv`, `wp_sensitivity.csv` | Which GreenFaaS mechanism buys what and what it costs in latency; baselines given the same warm-pool controls; parameter sensitivity |
 | `scripts/run_runtime_crossover.py` | `runtime_crossover.csv` | Job runtime swept from 2.5 s to 1 h in single-region deployments: where temporal shifting starts to pay |
 | `scripts/run_idle_sensitivity.py` | `idle_sensitivity.csv` | Sensitivity of the comparison to idle power and keep-alive time |
 

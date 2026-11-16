@@ -120,13 +120,16 @@ def break_even_rate(params: TradeoffParams) -> Optional[float]:
     r = params.r()
     alpha = params.alpha()
     beta = params.beta()
-    if r <= 1.0:
-        # No carbon advantage to going to L: C_L >= C_H, so the lemma's
-        # premise (C_L < C_H) is violated. Return None to signal "no
-        # spatial advantage exists"; callers should keep the home region.
+    if r < 1.0:
+        # No carbon advantage to going to L: C_L > C_H, so the lemma's
+        # premise is violated. Return None to signal "no spatial advantage
+        # exists"; callers should keep the home region.
         # NB: this is NOT the "warm always wins" branch (case 1 of the
         # lemma); it is a degenerate case outside the lemma's scope.
         return None
+    # r == 1 (same region, or equal intensities) is the keep-alive question:
+    # beta_crit = 0, so a finite break-even always exists, and the equation
+    # reduces to u* = beta / alpha, i.e. lambda* = P_i / (P_a tau_c).
     if beta <= beta_crit(r, alpha):
         return None  # Warm-in-L wins everywhere; no finite break-even.
     u_star = _solve_u_star(r, alpha, beta)

@@ -39,7 +39,7 @@ def main():
                              LatencyClass.BACKGROUND, DEADLINE),
             ]
             fn = {f.function_id: f for f in cat}
-            wa, gf, dfr, gsla, fsla = [], [], [], [], []
+            wa, gf, dfr, gsla, fsla, nd = [], [], [], [], [], []
             for seed in SEEDS:
                 invs = generate_workload(duration_s=DURATION, base_rate_per_s=rate,
                                          functions=cat, region_ids=ids, seed=seed,
@@ -51,6 +51,14 @@ def main():
                                              deferrable_rtt_ms=80.0)):
                     out[s.name] = Simulator(regions=regions, functions=fn, carbon=cm,
                                             scheduler=s).run(list(invs))
+                # Same scheduler without carbon-driven deferral: the
+                # difference isolates what the deferral rule contributes.
+                nd_res = Simulator(regions=regions, functions=fn, carbon=cm,
+                                   scheduler=GreenFaaSScheduler(temporal=False)
+                                   ).run(list(invs))
+                nd.append(100 * (out["FIFO"].summary()["carbon_g"]
+                                 - nd_res.summary()["carbon_g"])
+                          / out["FIFO"].summary()["carbon_g"])
                 b = out["FIFO"].summary()["carbon_g"]
                 wa.append(100 * (b - out["Wait-Awhile"].summary()["carbon_g"]) / b)
                 gf.append(100 * (b - out["GreenFaaS"].summary()["carbon_g"]) / b)
@@ -67,6 +75,8 @@ def main():
                 "waitawhile_sd": round(st.pstdev(wa), 2),
                 "greenfaas_vs_fifo_pct": round(st.mean(gf), 2),
                 "greenfaas_sd": round(st.pstdev(gf), 2),
+                "greenfaas_nodefer_vs_fifo_pct": round(st.mean(nd), 2),
+                "deferral_gain_pp": round(st.mean(gf) - st.mean(nd), 2),
                 "greenfaas_deferred_pct": round(st.mean(dfr), 1),
                 "greenfaas_sla_pct": round(st.mean(gsla), 2),
                 "fifo_sla_pct": round(st.mean(fsla), 2),

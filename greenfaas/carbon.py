@@ -72,6 +72,31 @@ class CarbonTrace:
         frac = idx - i0
         return self.values[i0] * (1.0 - frac) + self.values[i0 + 1] * frac
 
+    def integral(self, a: float, b: float) -> float:
+        """Exact integral of the (piecewise-linear, boundary-clamped)
+        intensity over [a, b], in (g CO2eq / kWh) * seconds."""
+        if b <= a:
+            return 0.0
+        total = 0.0
+        t = a
+        end_of_trace = (len(self.values) - 1) * self.step_s
+        while t < b:
+            if t < 0:
+                nxt = min(b, 0.0)
+            elif t >= end_of_trace:
+                nxt = b
+            else:
+                nxt = min(b, (math.floor(t / self.step_s) + 1) * self.step_s)
+                if nxt <= t:            # guard against float stalls
+                    nxt = min(b, t + self.step_s)
+            total += 0.5 * (self.intensity(t) + self.intensity(nxt)) * (nxt - t)
+            t = nxt
+        return total
+
+    def mean_over(self, a: float, b: float) -> float:
+        """Mean intensity over [a, b]."""
+        return self.integral(a, b) / (b - a) if b > a else self.intensity(a)
+
     def forecast(self, t: float, horizon_s: float, accuracy: str = "perfect") -> List[float]:
         """Return a forecast of intensities over [t, t + horizon_s].
 

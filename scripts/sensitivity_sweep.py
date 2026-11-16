@@ -8,7 +8,7 @@ Sweeps four axes individually, holding the others at sensible defaults:
   3. Forecast accuracy (perfect, 24h, 1h, none)
   4. Carbon-intensity variability (low vs high amplitude regions)
 
-For each axis we run FIFO, Wait-Awhile, Spatial, GreenFaaS-v1, GreenFaaS on
+For each axis we run FIFO, Wait-Awhile, Spatial, GreenFaaS-S, GreenFaaS on
 identical workloads. Output: figures/sensitivity_<axis>.png plus a CSV table
 of raw numbers per sweep point.
 
@@ -37,11 +37,12 @@ from greenfaas import (
     CarbonModel,
     FifoScheduler,
     GreenFaaSScheduler,
-    GreenFaaSV1Scheduler,
+    GreenFaaSSubmittedScheduler,
     LatencyClass,
     Region,
     Simulator,
     SpatialScheduler,
+    GreenCourierScheduler,
     WaitAwhileScheduler,
     generate_workload,
     make_default_function_catalog,
@@ -78,7 +79,8 @@ def build_schedulers():
         FifoScheduler(),
         WaitAwhileScheduler(threshold_g=200.0, max_defer_s=1800.0),
         SpatialScheduler(max_rtt_ms=80.0),
-        GreenFaaSV1Scheduler(forecast_accuracy="perfect", deferrable_rtt_ms=80.0),
+        GreenCourierScheduler(20.0, 80.0),
+        GreenFaaSSubmittedScheduler(forecast_accuracy="perfect", deferrable_rtt_ms=80.0),
         GreenFaaSScheduler(forecast_accuracy="perfect", deferrable_rtt_ms=80.0),
     ]
 
@@ -219,7 +221,7 @@ def sweep_forecast_accuracy(out_dir: Path, duration_s=6 * 3600.0):
     """Vary GreenFaaS's forecast quality from perfect to none.
 
     Other schedulers are unaffected (FIFO and Spatial don't use forecasts;
-    Wait-Awhile uses a hardcoded threshold). Only GreenFaaS and GreenFaaS-v1
+    Wait-Awhile uses a hardcoded threshold). Only GreenFaaS and GreenFaaS-S
     vary across this sweep.
     """
     print("\n[3/4] Sweeping forecast accuracy...")
@@ -238,7 +240,9 @@ def sweep_forecast_accuracy(out_dir: Path, duration_s=6 * 3600.0):
             FifoScheduler(),
             WaitAwhileScheduler(threshold_g=200.0, max_defer_s=1800.0),
             SpatialScheduler(max_rtt_ms=80.0),
-            GreenFaaSV1Scheduler(forecast_accuracy=acc, deferrable_rtt_ms=80.0),
+            GreenCourierScheduler(20.0, 80.0),
+        GreenCourierScheduler(20.0, 80.0),
+            GreenFaaSSubmittedScheduler(forecast_accuracy=acc, deferrable_rtt_ms=80.0),
             GreenFaaSScheduler(forecast_accuracy=acc, deferrable_rtt_ms=80.0),
         ]
         t0 = time.time()
@@ -246,7 +250,7 @@ def sweep_forecast_accuracy(out_dir: Path, duration_s=6 * 3600.0):
         elapsed = time.time() - t0
         reds = reduction_vs_fifo(point)
         print(f"  accuracy={acc:>7}  GreenFaaS={reds['GreenFaaS']:+.1f}%  "
-              f"GreenFaaS-v1={reds['GreenFaaS-v1']:+.1f}%  ({elapsed:.1f}s)")
+              f"GreenFaaS-S={reds['GreenFaaS-S']:+.1f}%  ({elapsed:.1f}s)")
         for name, summary in point.items():
             rows.append({"axis": "forecast", "x": acc,
                          "scheduler": name,
@@ -332,7 +336,8 @@ SCHED_COLORS = {
     "FIFO":         "#888888",
     "Wait-Awhile":  "#c0392b",
     "Spatial":      "#2980b9",
-    "GreenFaaS-v1": "#f39c12",
+    "GreenCourier": "#8e44ad",
+    "GreenFaaS-S": "#f39c12",
     "GreenFaaS":    "#27ae60",
 }
 

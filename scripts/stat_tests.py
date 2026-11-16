@@ -11,7 +11,7 @@ over the per-seed (synthetic) or per-window (real) carbon measurements.
 Comparisons tested:
   1. GreenFaaS vs Spatial   (synthetic 5-region, 5 seeds)
   2. GreenFaaS vs Spatial   (real workload, window-shift, 5 windows)
-  3. GreenFaaS vs GreenFaaS-v1 (synthetic, 5 seeds) -- ablation
+  3. GreenFaaS vs GreenFaaS-S (synthetic, 5 seeds) -- submitted version
   4. GreenFaaS vs FIFO      (synthetic, 5 seeds) -- sanity, should be significant
   5. Wait-Awhile vs FIFO    (real, 5 windows) -- should show WA is worse
 
@@ -91,8 +91,8 @@ def main():
                       setup_prefix="Synthetic 5-region")
     results.append(paired_test(syn, "GreenFaaS", "Spatial",
                                "GreenFaaS vs Spatial [synthetic]"))
-    results.append(paired_test(syn, "GreenFaaS", "GreenFaaS-v1",
-                               "GreenFaaS vs v1 ablation [synthetic]"))
+    results.append(paired_test(syn, "GreenFaaS", "GreenFaaS-S",
+                               "GreenFaaS vs submitted version [synthetic]"))
     results.append(paired_test(syn, "GreenFaaS", "FIFO",
                                "GreenFaaS vs FIFO [synthetic]"))
 
@@ -103,8 +103,8 @@ def main():
                        key_col="window_day")
     results.append(paired_test(real, "GreenFaaS", "Spatial",
                                "GreenFaaS vs Spatial [real, windows]"))
-    results.append(paired_test(real, "GreenFaaS", "GreenFaaS-v1",
-                               "GreenFaaS vs v1 ablation [real, windows]"))
+    results.append(paired_test(real, "GreenFaaS", "GreenFaaS-S",
+                               "GreenFaaS vs submitted version [real, windows]"))
     results.append(paired_test(real, "Wait-Awhile", "FIFO",
                                "Wait-Awhile vs FIFO [real, windows]"))
     results.append(paired_test(real, "Lechowicz", "FIFO",

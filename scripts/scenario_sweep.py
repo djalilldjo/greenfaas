@@ -23,7 +23,7 @@ from greenfaas import (
     CarbonModel,
     FifoScheduler,
     GreenFaaSScheduler,
-    GreenFaaSV1Scheduler,
+    GreenFaaSSubmittedScheduler,
     Region,
     Simulator,
     SpatialScheduler,
@@ -72,7 +72,7 @@ def run_scenario(name, region_ids, duration_s=24 * 3600.0, base_rate=2.0):
         FifoScheduler(),
         WaitAwhileScheduler(threshold_g=200.0, max_defer_s=1800.0),
         SpatialScheduler(max_rtt_ms=80.0),
-        GreenFaaSV1Scheduler(forecast_accuracy="perfect", deferrable_rtt_ms=80.0),
+        GreenFaaSSubmittedScheduler(forecast_accuracy="perfect", deferrable_rtt_ms=80.0),
         GreenFaaSScheduler(forecast_accuracy="perfect", deferrable_rtt_ms=80.0),
     ]
     results = []

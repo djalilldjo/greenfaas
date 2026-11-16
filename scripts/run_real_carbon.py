@@ -27,10 +27,11 @@ from greenfaas import default_carbon_dir
 from greenfaas import (
     FifoScheduler,
     GreenFaaSScheduler,
-    GreenFaaSV1Scheduler,
+    GreenFaaSSubmittedScheduler,
     Region,
     Simulator,
     SpatialScheduler,
+    GreenCourierScheduler,
     WaitAwhileScheduler,
     generate_workload,
     make_default_function_catalog,
@@ -92,7 +93,8 @@ def main():
         FifoScheduler(),
         WaitAwhileScheduler(threshold_g=200.0, max_defer_s=1800.0),
         SpatialScheduler(max_rtt_ms=80.0),
-        GreenFaaSV1Scheduler(forecast_accuracy="perfect", deferrable_rtt_ms=80.0),
+        GreenCourierScheduler(20.0, 80.0),
+        GreenFaaSSubmittedScheduler(forecast_accuracy="perfect", deferrable_rtt_ms=80.0),
         GreenFaaSScheduler(forecast_accuracy="perfect", deferrable_rtt_ms=80.0),
     ]
 
