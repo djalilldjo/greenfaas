@@ -1,6 +1,8 @@
 # GreenFaaS — Carbon-Aware Serverless Scheduling
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20370236.svg)](https://doi.org/10.5281/zenodo.20370236)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20370235.svg)](https://doi.org/10.5281/zenodo.20370235)
+
+Version v1.3.0, which accompanies the revised IEEE TSC paper: [10.5281/zenodo.24391870](https://doi.org/10.5281/zenodo.24391870). The badge above (all versions) always resolves to the latest release.
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 Reference implementation and discrete-event simulator for **GreenFaaS**, a

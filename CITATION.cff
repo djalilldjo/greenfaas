@@ -3,10 +3,17 @@ message: "If you use this software, please cite it as below."
 title: "GreenFaaS: Carbon-Aware Scheduling for Serverless Workloads"
 type: software
 version: v1.3.0
-date-released: 2026-11-15
+date-released: 2026-11-20
 license: Apache-2.0
 repository-code: "https://github.com/djalilldjo/greenfaas"
-doi: 10.5281/zenodo.20370236
+doi: 10.5281/zenodo.24391870
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.24391870
+    description: This version (v1.3.0)
+  - type: doi
+    value: 10.5281/zenodo.20370235
+    description: All versions (resolves to the latest)
 authors:
   - family-names: Ledmi
     given-names: Abdeldjalil
