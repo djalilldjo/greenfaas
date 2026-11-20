@@ -1,6 +1,6 @@
 {
   "title": "GreenFaaS: Carbon-Aware Scheduling for Serverless Workloads",
-  "description": "Reference implementation and discrete-event simulator for GreenFaaS, a carbon-aware scheduler for serverless (FaaS) workloads. Version 1.2.0 corrects the simulator's energy model (warm/cold resolved at start, all warm-idle time charged, newest-first container reuse) and regenerates all results; results from the earlier model are kept under results/legacy_v1.1.0. See CHANGELOG.md.",
+  "description": "Reference implementation and discrete-event simulator for GreenFaaS, a carbon-aware scheduler for serverless (FaaS) workloads. Version 1.3.0 accompanies the major revision of the IEEE Transactions on Services Computing paper. It corrects the simulator's energy accounting (warm or cold resolved when an invocation starts, all warm-idle time charged at the time-resolved carbon intensity) and redesigns the scheduler around warm-pool control: for each invocation it chooses the region, whether to queue for a busy container instead of cold-starting, and how long the container stays warm (break-even keep-alive). The originally submitted scheduler is kept for comparison, the earlier simulator behaviour is available through explicit switches, and all results are regenerated; earlier results are kept under results/v1.2.0 and results/legacy_v1.1.0. See CHANGELOG.md.",
   "upload_type": "software",
   "license": "Apache-2.0",
   "access_right": "open",
